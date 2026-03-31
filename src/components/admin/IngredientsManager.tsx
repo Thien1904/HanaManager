@@ -73,7 +73,7 @@ const sortIcon = (key: typeof sortKey) =>
   (
     (i) => {
   const matchSearch = i.name.toLowerCase().includes(search.toLowerCase())
-  const matchFilter = filter === 'all' || i.stock_quantity <= i.min_stock_level
+  const matchFilter = filter === 'all' ||i.stock_quantity < 0|| i.stock_quantity <= i.min_stock_level ;
   return matchSearch && matchFilter}
   )
   // Thêm vào phần state bảng công thức

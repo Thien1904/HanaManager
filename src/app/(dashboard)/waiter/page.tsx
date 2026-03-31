@@ -7,9 +7,16 @@ import clsx from 'clsx'
 // ── Types ─────────────────────────────────────────────────────
 interface Table { id: number; table_number: string; status: 'available'|'occupied'|'reserved'; activeOrder: ActiveOrder|null }
 interface ActiveOrder { id: number; status: string; total_price: number; created_at: string; users: {full_name:string}|null }
-interface Product { id: number; name: string; price: number; categories: {id:number;name:string}|null }
+interface Product { id: number; name: string; price: number; categories: {id:number;name:string}|null;image_url:string|null }
 interface OrderItem { id: number; quantity: number; subtotal: number; notes: string|null; products: {id:number;name:string;price:number}|null }
 interface CartItem { productId: number; name: string; price: number; quantity: number; notes: string }
+// const size for img product
+const imageStyle: React.CSSProperties = {
+  width: '100px',
+  height: '100px',
+  objectFit: 'cover'
+};
+
 
 const TABLE_STYLE = {
   available: 'bg-[#1a6b3c] hover:bg-[#1d7d46] border-[#1d7d46]',
@@ -715,8 +722,15 @@ export default function WaiterPOSPage() {
                   className={clsx('p-2 rounded-lg border text-left transition-all active:scale-95',
                     inCart?'bg-[#003366] border-[#0066cc]':'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
                   )}>
-                  <p className="text-xs font-medium leading-tight line-clamp-2 mb-1 text-white">{product.name}</p>
-                  <p className="text-xs font-bold text-[#00d4ff]">{(product.price/1000).toFixed(0)}k</p>
+                    <div className="flex">
+                      <div className="w-1/2" >
+                        <p className="text-xs font-medium leading-tight line-clamp-2 mb-1 text-white">{product.name}</p>
+                        <p className="text-xs font-bold text-[#00d4ff]">{(product.price/1000).toFixed(0)}k</p>
+                      </div>
+                      <div className="w-1/2" >
+                        <p className='img'><img src={product.image_url} width={100} height={50} alt={product.name}></img></p>
+                      </div>
+                    </div> 
                   {inCart&&<span className="mt-1 inline-block text-[10px] bg-[#0066cc] px-1.5 py-0.5 rounded-full text-white">×{inCart.quantity}</span>}
                 </button>
               )

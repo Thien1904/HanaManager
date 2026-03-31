@@ -1,99 +1,157 @@
 // src/app/api/tables/route.ts
+// Quản lý bàn ăn — CRUD bảng tables
+// Chỉ admin được thêm/sửa/xóa bàn
+// Waiter chỉ đọc (GET) qua useTables hook
+
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { ApiResponse, requireRole } from '@/utils/api'
+import { ApiResponse, requireRole, assert } from '@/utils/api'
 
-// GET /api/tables — Lấy danh sách tất cả bàn
-// Ai gọi được: admin + waiter (xem trong proxy.ts → ROUTE_PERMISSIONS)
+/**
+ * GET /api/tables — Lấy danh sách bàn kèm order đang active
+ * Cho phép: admin, waiter
+ */
 export async function GET(request: NextRequest) {
-
-  // Kiểm tra quyền — chỉ admin và waiter mới xem được bàn
   const { error } = requireRole(request, ['admin', 'waiter', 'chef'])
   if (error) return error
 
-  const supabase = createAdminClient()
-
-  // Query bảng tables — lấy thêm thông tin order đang active nếu có
-  // LEFT JOIN: bàn không có order vẫn hiện ra (không bị mất)
-  const { data, error: dbError } = await supabase
-    .from('tables')
-    .select(`
-      id,
-      table_number,
-      status,
-      orders (
-        id,
-        status,
-        total_price,
-        created_at,
-        users ( full_name )
-      )
-    `)
-    // Chỉ lấy order chưa thanh toán — tránh hiện order cũ đã paid
-    .not('orders.payment_status', 'eq', 'paid')
-    .not('orders.status', 'eq', 'cancelled')
-    .order('table_number')
-
-  if (dbError) {
-    console.error('Tables query error:', dbError)
-    return ApiResponse.error('Không thể tải danh sách bàn')
-  }
-
-  // Xử lý data: mỗi bàn chỉ lấy order mới nhất (nếu có nhiều)
-  const tables = data.map(table => ({
-    ...table,
-    activeOrder: table.orders?.[0] ?? null,
-    orders: undefined,
-  }))
-
-  // Tự động fix bàn bị kẹt:
-  // occupied nhưng không còn order active → reset về available
-  // Xảy ra khi hủy hết món sau khi bếp đã nhận
-  const stuckTables = tables.filter(
-    t => t.status === 'occupied' && !t.activeOrder
-  )
-
-  if (stuckTables.length > 0) {
-    await supabase
+  try {
+    const supabase = createAdminClient()
+    const { data, error: dbError } = await supabase
       .from('tables')
-      .update({ status: 'available' })
-     .in('orders.status', ['pending', 'sent_to_kitchen', 'preparing'])
-    // Cập nhật lại status trong response luôn — không cần client refresh thêm lần nữa
-    stuckTables.forEach(t => { t.status = 'available' })
-  }
+      .select(`
+        id, table_number, status,
+        orders (
+          id, status, total_price, created_at,
+          users ( id, full_name )
+        )
+      `)
+      // Tối ưu: Chỉ lấy các đơn hàng chưa hoàn tất để giảm tải dữ liệu
+      .not('orders.status', 'in', '(paid,cancelled)')
+      .order('table_number')
 
-  return ApiResponse.success(tables)
+    if (dbError) throw dbError
+
+    const tables = data.map((t) => ({
+      ...t,
+      // Vì đã lọc ở query phía trên, orders array giờ chỉ chứa tối đa 1 order đang active
+      activeOrder: (t.orders as any[])?.[0] ?? null,
+    }))
+
+    return ApiResponse.success(tables)
+  } catch (err) {
+    return ApiResponse.handle(err)
+  }
 }
 
-// PATCH /api/tables — Cập nhật trạng thái bàn
-// Dùng khi: waiter đổi bàn từ available → occupied hoặc ngược lại
-export async function PATCH(request: NextRequest) {
-
-  const { user, error } = requireRole(request, ['admin', 'waiter'])
+/**
+ * POST /api/tables — Thêm bàn mới
+ * Body: { table_number }
+ * Chỉ admin
+ */
+export async function POST(request: NextRequest) {
+  const { error } = requireRole(request, ['admin'])
   if (error) return error
 
-  const { tableId, status } = await request.json()
+  try {
+    const { table_number } = await request.json()
 
-  if (!tableId || !status) {
-    return ApiResponse.error('Thiếu tableId hoặc status')
+    assert(table_number?.toString().trim(), 'Số/tên bàn không được trống')
+
+    const supabase = createAdminClient()
+    const { data, error: dbError } = await supabase
+      .from('tables')
+      .insert({
+        table_number: table_number.toString().trim(),
+        status:       'available',
+      })
+      .select('id, table_number, status')
+      .single()
+
+    if (dbError) throw dbError
+    return ApiResponse.success(data, 201)
+  } catch (err) {
+    return ApiResponse.handle(err)
   }
+}
 
-  // Chỉ cho phép các trạng thái hợp lệ
-  const validStatuses = ['available', 'occupied', 'reserved']
-  if (!validStatuses.includes(status)) {
-    return ApiResponse.error('Trạng thái không hợp lệ')
+/**
+ * PUT /api/tables — Đổi tên bàn
+ * Body: { id, table_number }
+ * Chỉ admin — không cho đổi status ở đây (waiter tự đổi qua order flow)
+ */
+export async function PUT(request: NextRequest) {
+  const { error } = requireRole(request, ['admin'])
+  if (error) return error
+
+  try {
+    const { id, table_number } = await request.json()
+
+    assert(id,                                    'Thiếu id')
+    assert(table_number?.toString().trim(),        'Số/tên bàn không được trống')
+
+    const supabase = createAdminClient()
+    const { data, error: dbError } = await supabase
+      .from('tables')
+      .update({ table_number: table_number.toString().trim() })
+      .eq('id', Number(id))
+      .select('id, table_number, status')
+      .single()
+
+    if (dbError) throw dbError
+    return ApiResponse.success(data)
+  } catch (err) {
+    return ApiResponse.handle(err)
   }
+}
 
-  const supabase = createAdminClient()
+/**
+ * DELETE /api/tables — Xóa bàn
+ * Body: { id }
+ * Chỉ xóa được bàn đang available và không có order nào
+ * Chỉ admin
+ */
+export async function DELETE(request: NextRequest) {
+  const { error } = requireRole(request, ['admin'])
+  if (error) return error
 
-  const { data, error: dbError } = await supabase
-    .from('tables')
-    .update({ status })
-    .eq('id', tableId)
-    .select()
-    .single()
+  try {
+    const { id } = await request.json()
+    assert(id, 'Thiếu id')
 
-  if (dbError) return ApiResponse.error('Không thể cập nhật trạng thái bàn')
+    const supabase = createAdminClient()
 
-  return ApiResponse.success(data)
+    // Kiểm tra bàn có đang occupied không
+    const { data: table } = await supabase
+      .from('tables')
+      .select('status, table_number')
+      .eq('id', Number(id))
+      .single()
+
+    assert(table, 'Không tìm thấy bàn')
+    assert(
+      table.status === 'available',
+      `Bàn ${table.table_number} đang có khách hoặc đã đặt trước, không thể xóa`
+    )
+
+    // Kiểm tra còn order chưa thanh toán không
+    const { count } = await supabase
+      .from('orders')
+      .select('*', { count: 'exact', head: true })
+      .eq('table_id', Number(id))
+      // Sửa lỗi cú pháp: PostgREST không cần nháy kép bên trong ngoặc đơn
+      .not('status', 'in', '(paid,cancelled)')
+
+    assert(!count || count === 0, `Bàn còn ${count} order chưa xử lý, không thể xóa`)
+
+    const { error: dbError } = await supabase
+      .from('tables')
+      .delete()
+      .eq('id', Number(id))
+
+    if (dbError) throw dbError
+    return ApiResponse.success({ id: Number(id) })
+  } catch (err) {
+    return ApiResponse.handle(err)
+  }
 }

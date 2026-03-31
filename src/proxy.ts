@@ -21,6 +21,7 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/test') ||
      pathname.startsWith('/api/test') || 
+     pathname.startsWith('/api/print/queue')||
     pathname === '/favicon.ico'
   ) {
     return NextResponse.next()

@@ -1,139 +1,191 @@
 // src/app/api/products/route.ts
-import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/server'
-import { ApiResponse, requireRole } from '@/utils/api'
+// Quản lý món ăn: CRUD bảng products
+// Bao gồm cấu hình in: print_kitchen, print_bar, print_label
+// Trả về kèm variants (size + giá) cho từng món
 
-// GET /api/products — Lấy danh sách món ăn
+import { NextRequest } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/server'
+import { ApiResponse, requireRole, assert } from '@/utils/api'
+
+/**
+ * GET /api/products — Lấy danh sách món ăn kèm variants
+ * ?all=true → lấy cả món ẩn (admin)
+ * ?category_id=1 → filter theo danh mục
+ */
 export async function GET(request: NextRequest) {
   const { error } = requireRole(request, ['admin', 'waiter', 'chef'])
   if (error) return error
 
-  const supabase = createAdminClient()
-  const { searchParams } = new URL(request.url)
-  const categoryId = searchParams.get('category_id')
-  const includeUnavailable = searchParams.get('all') === 'true' // admin dùng ?all=true
+  try {
+    const { searchParams }   = new URL(request.url)
+    const categoryId         = searchParams.get('category_id')
+    const includeUnavailable = searchParams.get('all') === 'true'
 
-  let query = supabase
-    .from('products')
-    .select(`
-      id, name, description, price, image_url, is_available,category_id,
-      categories ( id, name )
-    `)
-    .eq('is_deleted', false)
-    .order('name')
+    const supabase = createAdminClient()
 
-  if (!includeUnavailable) query = query.eq('is_available', true)
-  if (categoryId) query = query.eq('category_id', Number(categoryId))
+    let query = supabase
+      .from('products')
+      .select(`
+        id, name, description, price, image_url, is_available,
+        category_id, print_kitchen, print_bar, print_label,
+        categories ( id, name ),
+        product_variants (
+          id, name, price, is_default, is_active, sort_order
+        )
+      `)
+      .eq('is_deleted', false)
+      .order('name')
 
-  const { data, error: dbError } = await query
-  if (dbError) return ApiResponse.error('Không thể tải danh sách món')
+    if (!includeUnavailable) query = query.eq('is_available', true)
+    if (categoryId) query = query.eq('category_id', Number(categoryId))
 
-  return ApiResponse.success(data)
+    const { data, error: dbError } = await query
+    if (dbError) throw dbError
+
+    // Chỉ giữ variant đang active, sort theo sort_order
+    const products = (data ?? []).map((p) => ({
+      ...p,
+      variants: (p.product_variants ?? [])
+        .filter((v: any) => v.is_active)
+        .sort((a: any, b: any) => a.sort_order - b.sort_order),
+    }))
+
+    return ApiResponse.success(products)
+  } catch (err) {
+    return ApiResponse.handle(err)
+  }
 }
 
-// POST /api/products — Thêm món mới
+/**
+ * POST /api/products — Thêm món mới
+ */
 export async function POST(request: NextRequest) {
   const { error } = requireRole(request, ['admin'])
   if (error) return error
 
-  const body = await request.json()
-  const { name, category_id, price, description, image_url, is_available } = body
+  try {
+    const body = await request.json()
+    const { name, category_id, price, description, image_url, is_available,
+            print_kitchen, print_bar, print_label } = body
 
-  if (!name?.trim()) return ApiResponse.error('Tên món không được trống', 400)
-  if (!category_id) return ApiResponse.error('Chọn danh mục', 400)
-  if (!price || price <= 0) return ApiResponse.error('Giá phải lớn hơn 0', 400)
+    assert(name?.trim(), 'Tên món không được trống')
+    assert(category_id,  'Chọn danh mục')
+    assert(price >= 0,   'Giá không hợp lệ')
 
-  const supabase = createAdminClient()
+    const supabase = createAdminClient()
+    const { data, error: dbError } = await supabase
+      .from('products')
+      .insert({
+        name:          name.trim(),
+        category_id:   Number(category_id),
+        price,
+        description:   description?.trim() ?? null,
+        image_url:     image_url ?? null,
+        is_available:  is_available ?? true,
+        print_kitchen: print_kitchen ?? true,
+        print_bar:     print_bar     ?? false,
+        print_label:   print_label   ?? false,
+      })
+      .select(`
+        id, name, description, price, image_url, is_available,
+        category_id, print_kitchen, print_bar, print_label,
+        categories ( id, name ),
+        product_variants ( id, name, price, is_default, is_active, sort_order )
+      `)
+      .single()
 
-  const { data, error: dbError } = await supabase
-    .from('products')
-    .insert({
-      name: name.trim(),
-      category_id: Number(category_id),
-      price,
-      description: description?.trim() ?? null,
-      image_url: image_url ?? null,
-      is_available: is_available ?? true,
-    })
-    .select(`
-      id, name, description, price, image_url, is_available,
-      categories ( id, name )
-    `)
-    .single()
-
-  if (dbError) return ApiResponse.error('Không thể thêm món')
-
-  return ApiResponse.success(data, 201)
+    if (dbError) throw dbError
+    return ApiResponse.success({ ...data, variants: [] }, 201)
+  } catch (err) {
+    return ApiResponse.handle(err)
+  }
 }
 
-// PUT /api/products — Cập nhật món
+/**
+ * PUT /api/products — Cập nhật món
+ */
 export async function PUT(request: NextRequest) {
   const { error } = requireRole(request, ['admin'])
   if (error) return error
 
-  const body = await request.json()
-  const { id, ...updates } = body
+  try {
+    const body = await request.json()
+    const { id, ...updates } = body
 
-  if (!id) return ApiResponse.error('Thiếu id', 400)
+    assert(id, 'Thiếu id')
 
-  // Chỉ update các cột hợp lệ trong schema
-  const allowed = ['name', 'category_id', 'price', 'description', 'image_url', 'is_available']
-  const safeUpdates = Object.fromEntries(
-    Object.entries(updates).filter(([k]) => allowed.includes(k))
-  )
+    const allowed = [
+      'name', 'category_id', 'price', 'description',
+      'image_url', 'is_available',
+      'print_kitchen', 'print_bar', 'print_label',
+    ]
+    const safeUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([k]) => allowed.includes(k))
+    )
+    if (safeUpdates.name)        safeUpdates.name = (safeUpdates.name as string).trim()
+    if (safeUpdates.category_id) safeUpdates.category_id = Number(safeUpdates.category_id)
 
-  if (safeUpdates.name) safeUpdates.name = (safeUpdates.name as string).trim()
-  if (safeUpdates.category_id) safeUpdates.category_id = Number(safeUpdates.category_id)
+    const supabase = createAdminClient()
+    const { data, error: dbError } = await supabase
+      .from('products')
+      .update(safeUpdates)
+      .eq('id', Number(id))
+      .eq('is_deleted', false)
+      .select(`
+        id, name, description, price, image_url, is_available,
+        category_id, print_kitchen, print_bar, print_label,
+        categories ( id, name ),
+        product_variants ( id, name, price, is_default, is_active, sort_order )
+      `)
+      .single()
 
-  const supabase = createAdminClient()
+    if (dbError) throw dbError
 
-  const { data, error: dbError } = await supabase
-    .from('products')
-    .update(safeUpdates)
-    .eq('id', Number(id))
-    .eq('is_deleted', false)
-    .select(`
-      id, name, description, price, image_url, is_available,
-      categories ( id, name )
-    `)
-    .single()
+    const result = {
+      ...data,
+      variants: (data.product_variants ?? [])
+        .filter((v: any) => v.is_active)
+        .sort((a: any, b: any) => a.sort_order - b.sort_order),
+    }
 
-  if (dbError) return ApiResponse.error('Không thể cập nhật món')
-
-  return ApiResponse.success(data)
+    return ApiResponse.success(result)
+  } catch (err) {
+    return ApiResponse.handle(err)
+  }
 }
 
-// DELETE /api/products — Soft delete món
+/**
+ * DELETE /api/products — Soft delete món
+ */
 export async function DELETE(request: NextRequest) {
   const { error } = requireRole(request, ['admin'])
   if (error) return error
 
-  const body = await request.json()
-  const { id } = body
+  try {
+    const { id } = await request.json()
+    assert(id, 'Thiếu id')
 
-  if (!id) return ApiResponse.error('Thiếu id', 400)
+    const supabase = createAdminClient()
 
-  const supabase = createAdminClient()
+    const { data: product } = await supabase
+      .from('products')
+      .select('image_url')
+      .eq('id', Number(id))
+      .single()
 
-  // Lấy image_url để xóa ảnh trên storage
-  const { data: product } = await supabase
-    .from('products')
-    .select('image_url')
-    .eq('id', Number(id))
-    .single()
+    if (product?.image_url) {
+      const path = product.image_url.split('/storage/v1/object/public/products/')[1]
+      if (path) await supabase.storage.from('products').remove([path])
+    }
 
-  if (product?.image_url) {
-    const path = product.image_url.split('/storage/v1/object/public/products/')[1]
-    if (path) await supabase.storage.from('products').remove([path])
+    const { error: dbError } = await supabase
+      .from('products')
+      .update({ is_deleted: true, is_available: false, image_url: null })
+      .eq('id', Number(id))
+
+    if (dbError) throw dbError
+    return ApiResponse.success({ id: Number(id) })
+  } catch (err) {
+    return ApiResponse.handle(err)
   }
-
-  // Soft delete — giữ FK với order_items
-  const { error: dbError } = await supabase
-    .from('products')
-    .update({ is_deleted: true, is_available: false, image_url: null })
-    .eq('id', Number(id))
-
-  if (dbError) return ApiResponse.error('Không thể xóa món')
-
-  return ApiResponse.success({ id })
 }

@@ -177,6 +177,14 @@ dist
 !.yarn/sdks
 !.yarn/versions
 
+#ignore log
+*.log
+
+#ignore .sql
+db.sql
+#ignore test
+Test.ts
+
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*

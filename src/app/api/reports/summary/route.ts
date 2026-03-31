@@ -76,13 +76,14 @@ console.log('Kết thúc:', todayEnd);
     .slice(0, 10)
 
   // 4. Hoạt động giảm giá gần đây (10 bill gần nhất có discount)
+  const PAGE_SIZE = 10
   const { data: discountOrders } = await supabase
     .from('orders')
     .select('id, total_price, discount_amount, created_at, tables(table_number), users(full_name)')
     .gt('discount_amount', 0)
     .eq('payment_status', 'paid')
     .order('created_at', { ascending: false })
-    .limit(10)
+    .limit(50)
 
   // 5. Chi tiết món hủy hôm nay
   const cancelledDetail = (cancelledItems ?? []).map(i => ({
@@ -105,3 +106,4 @@ console.log('Kết thúc:', todayEnd);
     cancelledDetail,
   })
 }
+
