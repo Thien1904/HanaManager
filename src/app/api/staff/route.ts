@@ -18,6 +18,7 @@
 
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { requirePermission } from '@/lib/requirePermission'
 // createAdminClient: tạo Supabase client dùng SERVICE_ROLE_KEY
 // → bypass RLS, dùng trong API routes server-side để có toàn quyền đọc/ghi
 
@@ -54,9 +55,7 @@ export async function GET(request: NextRequest) {
 
   // Bước 3: Lấy employee_profiles riêng (tránh lỗi nested select)
   // employee_types join để lấy tên loại NV và mức lương mặc định
-  const { data: profiles } = await supabase
-    .from('employee_profiles')
-    .select(`
+  const { data: profiles } = await supabase.from('employee_profiles').select(`
       id, user_id, hire_date, id_card,
       bank_account, bank_name, address,
       emergency_contact, is_active, note,
@@ -77,9 +76,9 @@ export async function GET(request: NextRequest) {
 // Tạo tài khoản nhân viên mới
 // Gồm 2 bước: tạo user → tạo employee_profile
 // ============================================================
-export async function POST(request: NextRequest) { 
+export async function POST(request: NextRequest) {
   // Bước 1: Kiểm tra quyền
-  const { error: authError } = requireRole(request, ['admin'])  
+  const { error: authError } = requireRole(request, ['admin'])
   if (authError) return authError
   /**Dữ liệu đầu vào kỳ vọng:
    
@@ -103,18 +102,27 @@ export async function POST(request: NextRequest) {
    */
   const body = await request.json()
   const {
-    username, password, full_name, phone, role,
-    // Thông tin hồ sơ nhân viên 
-    employee_type_id, hire_date, id_card,
-    bank_account, bank_name, address,
-    emergency_contact, note,
+    username,
+    password,
+    full_name,
+    phone,
+    role,
+    // Thông tin hồ sơ nhân viên
+    employee_type_id,
+    hire_date,
+    id_card,
+    bank_account,
+    bank_name,
+    address,
+    emergency_contact,
+    note,
   } = body
 
   // Bước 2: Validate dữ liệu đầu vào
-  if (!username?.trim())              return ApiResponse.error('Username không được trống')
+  if (!username?.trim()) return ApiResponse.error('Username không được trống')
   if (!password || password.length < 6) return ApiResponse.error('Mật khẩu tối thiểu 6 ký tự')
-  if (!full_name?.trim())             return ApiResponse.error('Họ tên không được trống')
-  if (!role)                          return ApiResponse.error('Chọn vai trò')
+  if (!full_name?.trim()) return ApiResponse.error('Họ tên không được trống')
+  if (!role) return ApiResponse.error('Chọn vai trò')
 
   const supabase = createAdminClient()
 
@@ -133,12 +141,12 @@ export async function POST(request: NextRequest) {
   const { data: user, error: userError } = await supabase
     .from('users')
     .insert({
-      username:      username.trim(),
+      username: username.trim(),
       password_hash,
-      full_name:     full_name.trim(),
-      phone:         phone?.trim() ?? null,
+      full_name: full_name.trim(),
+      phone: phone?.trim() ?? null,
       role,
-      is_active:     true,
+      is_active: true,
     })
     .select('id, username, full_name, phone, role, is_active, created_at')
     .single()
@@ -150,20 +158,18 @@ export async function POST(request: NextRequest) {
 
   // Bước 6: Tạo employee_profile liên kết với user vừa tạo
   // Dùng user.id làm foreign key
-  const { error: profileError } = await supabase
-    .from('employee_profiles')
-    .insert({
-      user_id:           user.id,
-      employee_type_id:  employee_type_id || null,
-      hire_date:         hire_date || null,
-      id_card:           id_card?.trim() || null,
-      bank_account:      bank_account?.trim() || null,
-      bank_name:         bank_name?.trim() || null,
-      address:           address?.trim() || null,
-      emergency_contact: emergency_contact?.trim() || null,
-      note:              note?.trim() || null,
-      is_active:         true,
-    })
+  const { error: profileError } = await supabase.from('employee_profiles').insert({
+    user_id: user.id,
+    employee_type_id: employee_type_id || null,
+    hire_date: hire_date || null,
+    id_card: id_card?.trim() || null,
+    bank_account: bank_account?.trim() || null,
+    bank_name: bank_name?.trim() || null,
+    address: address?.trim() || null,
+    emergency_contact: emergency_contact?.trim() || null,
+    note: note?.trim() || null,
+    is_active: true,
+  })
 
   // Profile lỗi không block — user vẫn được tạo, profile có thể sửa sau
   if (profileError) console.error('[staff:POST] profile error:', profileError)
@@ -178,17 +184,24 @@ export async function POST(request: NextRequest) {
 // username KHÔNG cho đổi (dùng làm định danh đăng nhập)
 // ============================================================
 export async function PUT(request: NextRequest) {
-  // Bước 1: Kiểm tra quyền
-  const { error: authError } = requireRole(request, ['admin'])
-  if (authError) return authError
+  // 🔥 1. Check permission (CHỈ 1 LẦN, ở đầu)
+  const { user: currentUser, error } = await requirePermission(request, 'staff.update')
+  if (error) return error
 
+  // 🔥 2. Parse body
   const body = await request.json()
   const {
-    id, password,
-    // Tách thông tin hồ sơ ra khỏi thông tin user
-    employee_type_id, hire_date, id_card,
-    bank_account, bank_name, address,
-    emergency_contact, note,
+    id,
+    password,
+    permissions, // 👈 lấy luôn ra đây
+    employee_type_id,
+    hire_date,
+    id_card,
+    bank_account,
+    bank_name,
+    address,
+    emergency_contact,
+    note,
     ...userUpdates
   } = body
 
@@ -196,19 +209,19 @@ export async function PUT(request: NextRequest) {
 
   const supabase = createAdminClient()
 
-  // Bước 2: Chỉ update các cột được phép — tránh user tự ý đổi username/password_hash
+  // 🔥 3. Filter field được phép update
   const allowedUserFields = ['full_name', 'phone', 'role', 'is_active']
   const safeUserUpdates = Object.fromEntries(
-    Object.entries(userUpdates).filter(([k]) => allowedUserFields.includes(k))
+    Object.entries(userUpdates).filter(([k]) => allowedUserFields.includes(k)),
   )
 
-  // Bước 3: Nếu có đổi mật khẩu thì hash lại
+  // 🔥 4. Hash password nếu có
   if (password) {
     if (password.length < 6) return ApiResponse.error('Mật khẩu tối thiểu 6 ký tự')
     safeUserUpdates.password_hash = await bcrypt.hash(password, 10)
   }
 
-  // Bước 4: Update bảng users (chỉ khi có field thay đổi)
+  // 🔥 5. Update users
   if (Object.keys(safeUserUpdates).length > 0) {
     const { error: userError } = await supabase
       .from('users')
@@ -221,27 +234,56 @@ export async function PUT(request: NextRequest) {
     }
   }
 
-  // Bước 5: Upsert employee_profile
-  // Upsert = insert nếu chưa có, update nếu đã có (theo user_id)
-  const { error: profileError } = await supabase
-    .from('employee_profiles')
-    .upsert({
-      user_id:           Number(id),
-      employee_type_id:  employee_type_id || null,
-      hire_date:         hire_date || null,
-      id_card:           id_card?.trim() || null,
-      bank_account:      bank_account?.trim() || null,
-      bank_name:         bank_name?.trim() || null,
-      address:           address?.trim() || null,
+  // 🔥 6. Upsert employee_profile
+  const { error: profileError } = await supabase.from('employee_profiles').upsert(
+    {
+      user_id: Number(id),
+      employee_type_id: employee_type_id || null,
+      hire_date: hire_date || null,
+      id_card: id_card?.trim() || null,
+      bank_account: bank_account?.trim() || null,
+      bank_name: bank_name?.trim() || null,
+      address: address?.trim() || null,
       emergency_contact: emergency_contact?.trim() || null,
-      note:              note?.trim() || null,
-    }, { onConflict: 'user_id' })
+      note: note?.trim() || null,
+    },
+    { onConflict: 'user_id' },
+  )
 
-  if (profileError) console.error('[staff:PUT] profile error:', profileError)
+  if (profileError) {
+    console.error('[staff:PUT] profile error:', profileError)
+  }
 
+  // 🔥 7. Xử lý permissions
+  if (permissions) {
+    // ❗ chỉ admin mới được sửa quyền
+    if (currentUser.role !== 'admin') {
+      return ApiResponse.forbidden()
+    }
+
+    // 1. Xóa quyền cũ
+    await supabase.from('user_permissions').delete().eq('user_id', Number(id))
+
+    // 2. Lấy id permission từ code
+    const { data: perms } = await supabase
+      .from('permissions')
+      .select('id, code')
+      .in('code', permissions)
+    console.log({ perms })
+    // 3. Insert lại
+    if (perms?.length) {
+      await supabase.from('user_permissions').insert(
+        perms.map((p) => ({
+          user_id: Number(id),
+          permission_id: p.id,
+        })),
+      )
+    }
+  }
+
+  // 🔥 8. Return
   return ApiResponse.success({ id: Number(id) })
 }
-
 // ============================================================
 // DELETE /api/staff
 // Vô hiệu hóa tài khoản (soft delete — đặt is_active = false)

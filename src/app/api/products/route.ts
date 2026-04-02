@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
     assert(category_id,  'Chọn danh mục')
     assert(price >= 0,   'Giá không hợp lệ')
 
-    const supabase = createAdminClient()
+    const supabase = createAdminClient()   
     const { data, error: dbError } = await supabase
       .from('products')
       .insert({

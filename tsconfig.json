@@ -1,23 +1,21 @@
 {
   "compilerOptions": {
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    "lib": ["dom", "dom.iterable", "esnext"],
     "paths": {
-      
       "@/*": ["./src/*"]
     },
-
     "allowJs": true,
     "skipLibCheck": true,
-    "strict": false,
+    "strict": false, // Tao giữ nguyên false theo ý mày để code cho thoải mái
     "noEmit": true,
     "incremental": true,
     "module": "esnext",
-    "esModuleInterop": true,
-    "moduleResolution": "node",
+    "esModuleInterop": true, 
+    // --- SỬA CHỖ NÀY ĐỂ HẾT LỖI DEPRECATED ---
+    "moduleResolution": "bundler", 
+    "allowImportingTsExtensions": true,
+    // ----------------------------------------
+
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
@@ -26,16 +24,14 @@
         "name": "next"
       }
     ],
-    "target": "ES2017"
+    "target": "ESNext" // Nâng cấp target lên ESNext cho đồng bộ với Module
   },
   "include": [
     "next-env.d.ts",
-    ".next/types/**/*.ts",
     "**/*.ts",
     "**/*.tsx",
+    ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": [
-    "node_modules"
-  ]
+  "exclude": ["node_modules"]
 }

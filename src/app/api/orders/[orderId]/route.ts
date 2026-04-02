@@ -6,29 +6,38 @@ import { promises } from 'dns'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ orderId: string }> }
+  { params }: { params: Promise<{ orderId: string }> },
 ) {
   const { error } = requireRole(request, ['admin', 'waiter', 'chef'])
   if (error) return error
   if (error) return error
 
-  const supabase  = createAdminClient()
+  const supabase = createAdminClient()
   const { orderId: id } = await params
-  const orderId         = parseInt(id)
+  const orderId = parseInt(id)
   if (isNaN(orderId)) return ApiResponse.error('orderId không hợp lệ')
 
   const { data, error: dbError } = await supabase
     .from('orders')
-    .select(`
+    .select(
+      `
       id, status, payment_status, total_price, discount_amount, note, created_at,
       tables      ( table_number ),
       users       ( full_name ),
       customers   ( name, phone ),
       order_items (
-        id, quantity, subtotal, notes,
-        products ( id, name, price )
+        id,
+         quantity,
+         subtotal,
+         notes,
+         variant_id,
+         variant_name,   
+        products ( id, name, price ),
+        product_variants ( name )
+      
       )
-    `)
+    `,
+    )
     .eq('id', orderId)
     .single()
 
@@ -40,7 +49,7 @@ export async function GET(
 // PATCH /api/orders/[orderId] — Cập nhật ghi chú order
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ orderId: string }> }
+  { params }: { params: Promise<{ orderId: string }> },
 ) {
   const { error } = requireRole(request, ['admin', 'waiter'])
   if (error) return error
@@ -53,7 +62,8 @@ export async function PATCH(
     .from('orders')
     .update({ note: body.note })
     .eq('id', parseInt(orderId))
-    .select().single()
+    .select()
+    .single()
 
   if (dbError) return ApiResponse.error('Không thể cập nhật ghi chú')
   return ApiResponse.success(data)
