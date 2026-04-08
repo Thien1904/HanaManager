@@ -5,7 +5,7 @@
 //
 // LUỒNG CHẠY:
 //   1. Request từ client (StaffManager.tsx / StaffFormModal.tsx)
-//   2. proxy.ts kiểm tra JWT → đính kèm x-user-id, x-user-role vào header
+//   2. Middleware (src/middleware.ts) xác thực JWT, phân quyền, đính permissions vào header
 //   3. requireRole() đọc header → kiểm tra có phải admin không
 //   4. Nếu đúng role → thực hiện query Supabase
 //   5. Trả về JSON theo format ApiResponse { success, data } hoặc { success, error }
@@ -24,7 +24,7 @@ import { requirePermission } from '@/lib/requirePermission'
 
 import { ApiResponse, requireRole } from '@/utils/api'
 // ApiResponse: helper trả về JSON chuẩn { success, data } hoặc { success, error }
-// requireRole: đọc header x-user-role từ proxy.ts → kiểm tra quyền truy cập
+// requireRole: đọc header x-user-role từ middleware.ts → kiểm tra quyền truy cập
 
 import bcrypt from 'bcryptjs'
 // bcryptjs: hash mật khẩu trước khi lưu vào database

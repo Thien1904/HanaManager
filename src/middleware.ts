@@ -1,13 +1,12 @@
-// src/proxy.ts
+// src/middleware.ts
 // Middleware xác thực JWT và phân quyền
 // Lấy permissions của user từ DB → đính vào header x-user-permissions
 // middleware.ts là file middleware cho Next.js 16
 
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken } from '@/lib/auth-edge'
+import { verifyToken,getHomeByRole } from '@/lib/auth-edge'
 import { UserRole } from '@/types/database'
 import { createServerClient } from '@supabase/ssr'
-
 const ROUTE_PERMISSIONS: Record<string, UserRole[]> = {
   '/admin': ['admin'],
   '/waiter': ['admin', 'waiter'],
@@ -87,18 +86,7 @@ export async function middleware(request: NextRequest) {
   return NextResponse.next({ request: { headers: requestHeaders } })
 }
 
-export function getHomeByRole(role: UserRole): string {
-  switch (role) {
-    case 'admin':
-      return '/admin/reports'
-    case 'waiter':
-      return '/waiter'
-    case 'chef':
-      return '/chef/kitchen'
-    default:
-      return '/login'
-  }
-}
+
 
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],

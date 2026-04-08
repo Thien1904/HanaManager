@@ -21,3 +21,15 @@ export async function verifyToken(token: string): Promise<SessionPayload | null>
     return null
   }
 }
+export function getHomeByRole(role: UserRole): string {
+  switch (role) {
+    case 'admin':
+      return '/admin/reports'
+    case 'waiter':
+      return '/waiter'
+    case 'chef':
+      return '/chef/kitchen'
+    default:
+      return '/login'
+  }
+}

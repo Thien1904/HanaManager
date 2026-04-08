@@ -24,7 +24,7 @@ export function assert(condition: unknown, message: string, status = 400): asser
   if (!condition) throw new ValidationError(message, status)
 }
 
-// Lấy user từ header (proxy.ts đã đính kèm x-user-id, x-user-role, x-user-permissions)
+//LẤY THÔNG TIN USER TỪ HEADER DO MIDDLEWARE ĐÍNH VÀO
 export function getUserFromRequest(request: NextRequest) {
   const userId = request.headers.get('x-user-id')
   const role = request.headers.get('x-user-role') as UserRole | null
