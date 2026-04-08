@@ -61,12 +61,15 @@ export default function StaffFormModal({ staff, employeeTypes, onClose, onSaved 
     loadPermissions()
   }, [])
   //Group permissions theo group_name
-  const grouped = permissions.reduce((acc: any, p: any) => {
-    if (!acc[p.group_name]) acc[p.group_name] = []
-    acc[p.group_name].push(p)
+  // Đảm bảo permissions luôn là mảng, nếu không thì dùng mảng rỗng
+  const safePermissions = Array.isArray(permissions) ? permissions : []
+
+  const grouped = safePermissions.reduce((acc: any, p: any) => {
+    const key = p.grp || 'Khác'
+    if (!acc[key]) acc[key] = []
+    acc[key].push(p)
     return acc
   }, {})
-
   useEffect(() => {
     if (!staff) return
 

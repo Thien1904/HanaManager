@@ -1,14 +1,89 @@
-import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+// src/app/api/permissions/route.ts
+// Quản lý phân quyền user
+// GET: lấy tất cả permissions + permissions của user
+// PUT: cập nhật permissions cho user
 
-export async function GET() {
-  const supabase = await createClient()
+import { NextRequest } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/server'
+import { ApiResponse, requireRole, assert } from '@/utils/api'
 
-  const { data, error } = await supabase.from('permissions').select('*').order('group_name')
+/**
+ * GET /api/permissions?user_id=1
+ * Lấy toàn bộ danh sách permissions và permissions hiện tại của user
+ * Chỉ admin
+ */
+export async function GET(request: NextRequest) {
+  const { error } = requireRole(request, ['admin'])
+  if (error) return error
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  try {
+    const { searchParams } = new URL(request.url)
+    const userId = searchParams.get('user_id')
+
+    const supabase = createAdminClient()
+
+    // Lấy tất cả permissions nhóm theo grp
+    const { data: allPerms, error: permsError } = await supabase
+      .from('permissions')
+      .select('id, code, name, grp')
+      .order('grp')
+      .order('name')
+
+    if (permsError) throw permsError
+
+    // Nếu có user_id → lấy thêm permissions của user đó
+    let userPermIds: number[] = []
+    if (userId) {
+      const { data: userPerms } = await supabase
+        .from('user_permissions')
+        .select('permission_id')
+        .eq('user_id', Number(userId))
+
+      userPermIds = (userPerms ?? []).map((p) => p.permission_id)
+    }
+
+    return ApiResponse.success({
+      permissions: allPerms ?? [],
+      userPermissionIds: userPermIds,
+    })
+  } catch (err) {
+    return ApiResponse.handle(err)
   }
+}
 
-  return NextResponse.json(data)
+/**
+ * PUT /api/permissions — Cập nhật permissions cho user
+ * Body: { user_id, permission_ids: number[] }
+ * Chỉ admin
+ */
+export async function PUT(request: NextRequest) {
+  const { error } = requireRole(request, ['admin'])
+  if (error) return error
+
+  try {
+    const { user_id, permission_ids } = await request.json()
+
+    assert(user_id, 'Thiếu user_id')
+    assert(Array.isArray(permission_ids), 'permission_ids phải là mảng')
+
+    const supabase = createAdminClient()
+
+    // Xóa hết permissions cũ của user
+    await supabase.from('user_permissions').delete().eq('user_id', Number(user_id))
+
+    // Insert permissions mới
+    if (permission_ids.length > 0) {
+      const { error: insertError } = await supabase.from('user_permissions').insert(
+        permission_ids.map((pid: number) => ({
+          user_id: Number(user_id),
+          permission_id: pid,
+        })),
+      )
+      if (insertError) throw insertError
+    }
+
+    return ApiResponse.success({ user_id: Number(user_id), count: permission_ids.length })
+  } catch (err) {
+    return ApiResponse.handle(err)
+  }
 }

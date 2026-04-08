@@ -7,7 +7,7 @@ import Groq from 'groq-sdk'
 import { createAdminClient } from '@/lib/supabase/server'
 import { ApiResponse, requireRole } from '@/utils/api'
 
-const groq  = new Groq({ apiKey: process.env.GROQ_API_KEY })
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 const MODEL = 'llama-3.3-70b-versatile'
 
 // ============================================================
@@ -16,16 +16,41 @@ const MODEL = 'llama-3.3-70b-versatile'
 function classifyQuestion(q: string): 'restaurant' | 'general' | 'casual' {
   const lower = q.toLowerCase()
   const casualKeywords = [
-    'bạn khỏe', 'khỏe không', 'chào', 'hello', 'hi ', 'xin chào',
-    'cảm ơn', 'thank', 'tạm biệt', 'bye', 'bạn là ai', 'bạn tên gì',
+    'bạn khỏe',
+    'khỏe không',
+    'chào',
+    'hello',
+    'hi ',
+    'xin chào',
+    'cảm ơn',
+    'thank',
+    'tạm biệt',
+    'bye',
+    'bạn là ai',
+    'bạn tên gì',
   ]
   const restaurantKeywords = [
-    'doanh thu', 'bán', 'order', 'đơn hàng', 'tiền', 'món',
-    'bàn', 'nhân viên', 'hủy', 'thanh toán', 'khách', 'ca làm',
-    'thực đơn', 'menu', 'lương', 'bếp', 'phục vụ', 'table',
+    'doanh thu',
+    'bán',
+    'order',
+    'đơn hàng',
+    'tiền',
+    'món',
+    'bàn',
+    'nhân viên',
+    'hủy',
+    'thanh toán',
+    'khách',
+    'ca làm',
+    'thực đơn',
+    'menu',
+    'lương',
+    'bếp',
+    'phục vụ',
+    'table',
   ]
-  if (casualKeywords.some(k => lower.includes(k))) return 'casual'
-  if (restaurantKeywords.some(k => lower.includes(k))) return 'restaurant'
+  if (casualKeywords.some((k) => lower.includes(k))) return 'casual'
+  if (restaurantKeywords.some((k) => lower.includes(k))) return 'restaurant'
   return 'general'
 }
 
@@ -34,23 +59,27 @@ function classifyQuestion(q: string): 'restaurant' | 'general' | 'casual' {
 // ============================================================
 async function buildRestaurantSummary(question: string): Promise<string> {
   const supabase = createAdminClient()
-  const q        = question.toLowerCase()
+  const q = question.toLowerCase()
   const lines: string[] = []
 
-  const today    = new Date()
+  const today = new Date()
   const todayStr = today.toISOString().split('T')[0]
-  const weekAgo  = new Date(today); weekAgo.setDate(today.getDate() - 7)
-  const monthAgo = new Date(today); monthAgo.setDate(today.getDate() - 30)
+  const weekAgo = new Date(today)
+  weekAgo.setDate(today.getDate() - 7)
+  const monthAgo = new Date(today)
+  monthAgo.setDate(today.getDate() - 30)
 
   // ── Đơn hàng cuối cùng ──
   if (q.match(/cuối|gần nhất|mới nhất|last/)) {
     const { data } = await supabase
       .from('orders')
-      .select(`
+      .select(
+        `
         id, total_price, payment_method, created_at, status,
         tables ( table_number ),
         order_items ( quantity, products ( name ) )
-      `)
+      `,
+      )
       .order('created_at', { ascending: false })
       .limit(1)
       .single()
@@ -78,12 +107,18 @@ async function buildRestaurantSummary(question: string): Promise<string> {
       .gte('created_at', monthAgo.toISOString())
 
     if (orders?.length) {
-      const todayOrders = orders.filter(o => o.created_at.startsWith(todayStr))
-      const weekOrders  = orders.filter(o => new Date(o.created_at) >= weekAgo)
+      const todayOrders = orders.filter((o) => o.created_at.startsWith(todayStr))
+      const weekOrders = orders.filter((o) => new Date(o.created_at) >= weekAgo)
       const sum = (arr: typeof orders) => arr.reduce((s, o) => s + Number(o.total_price), 0)
-      lines.push(`Doanh thu hôm nay: ${sum(todayOrders).toLocaleString('vi-VN')}đ (${todayOrders.length} đơn)`)
-      lines.push(`Doanh thu 7 ngày: ${sum(weekOrders).toLocaleString('vi-VN')}đ (${weekOrders.length} đơn)`)
-      lines.push(`Doanh thu 30 ngày: ${sum(orders).toLocaleString('vi-VN')}đ (${orders.length} đơn)`)
+      lines.push(
+        `Doanh thu hôm nay: ${sum(todayOrders).toLocaleString('vi-VN')}đ (${todayOrders.length} đơn)`,
+      )
+      lines.push(
+        `Doanh thu 7 ngày: ${sum(weekOrders).toLocaleString('vi-VN')}đ (${weekOrders.length} đơn)`,
+      )
+      lines.push(
+        `Doanh thu 30 ngày: ${sum(orders).toLocaleString('vi-VN')}đ (${orders.length} đơn)`,
+      )
     } else {
       lines.push('Chưa có đơn hàng nào được thanh toán')
     }
@@ -119,9 +154,11 @@ async function buildRestaurantSummary(question: string): Promise<string> {
   if (q.match(/bàn|table|trống|occupied/)) {
     const { data: tables } = await supabase.from('tables').select('table_number, status')
     if (tables?.length) {
-      const available = tables.filter(t => t.status === 'available')
-      const occupied  = tables.filter(t => t.status === 'occupied')
-      lines.push(`Bàn trống: ${available.length} (${available.map(t => t.table_number).join(', ')})`)
+      const available = tables.filter((t) => t.status === 'available')
+      const occupied = tables.filter((t) => t.status === 'occupied')
+      lines.push(
+        `Bàn trống: ${available.length} (${available.map((t) => t.table_number).join(', ')})`,
+      )
       lines.push(`Bàn có khách: ${occupied.length}`)
     }
   }
@@ -130,7 +167,7 @@ async function buildRestaurantSummary(question: string): Promise<string> {
   if (q.match(/nhân viên|staff/)) {
     const { data: users } = await supabase.from('users').select('full_name, role, is_active')
     if (users?.length) {
-      const active = users.filter(u => u.is_active)
+      const active = users.filter((u) => u.is_active)
       const byRole = active.reduce((acc: Record<string, string[]>, u) => {
         if (!acc[u.role]) acc[u.role] = []
         acc[u.role].push(u.full_name)
@@ -138,7 +175,7 @@ async function buildRestaurantSummary(question: string): Promise<string> {
       }, {})
       lines.push(`Nhân viên đang hoạt động: ${active.length}`)
       Object.entries(byRole).forEach(([role, names]) =>
-        lines.push(`  - ${role}: ${names.join(', ')}`)
+        lines.push(`  - ${role}: ${names.join(', ')}`),
       )
     }
   }
@@ -157,12 +194,15 @@ export async function POST(request: NextRequest) {
   const { message, conversationId } = body
   if (!message?.trim()) return ApiResponse.error('Câu hỏi không được trống')
 
-  const supabase     = createAdminClient()
+  const supabase = createAdminClient()
   const questionType = classifyQuestion(message)
 
   try {
     const today = new Date().toLocaleDateString('vi-VN', {
-      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
     })
 
     type GroqMsg = { role: 'user' | 'assistant' | 'system'; content: string }
@@ -194,8 +234,8 @@ export async function POST(request: NextRequest) {
         .order('created_at', { ascending: true })
         .limit(10) // 10 tin nhắn gần nhất = đủ nhớ ngữ cảnh, không tốn quá nhiều token
       if (prev) {
-        history = prev.map(m => ({
-          role:    (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
+        history = prev.map((m) => ({
+          role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
           content: m.content,
         }))
       }
@@ -207,8 +247,8 @@ export async function POST(request: NextRequest) {
         .from('ai_conversations')
         .insert({
           user_id: user!.userId,
-          mode:    'restaurant_assistant',
-          title:   message.slice(0, 50),
+          mode: 'restaurant_assistant',
+          title: message.slice(0, 50),
         })
         .select('id')
         .single()
@@ -222,12 +262,10 @@ export async function POST(request: NextRequest) {
       systemContent = `Bạn là trợ lý AI thân thiện của nhà hàng. Hôm nay ${today}.
 Trả lời tự nhiên, thân thiện bằng tiếng Việt.
 Nhớ toàn bộ nội dung cuộc trò chuyện — nếu user đã chia sẻ tên hay thông tin gì thì dùng lại.`
-
     } else if (questionType === 'general') {
       systemContent = `Bạn là trợ lý AI thông minh của nhà hàng. Hôm nay ${today}.
 Trả lời câu hỏi kiến thức chung ngắn gọn, chính xác bằng tiếng Việt.
 Nhớ toàn bộ nội dung cuộc trò chuyện — nếu user đã chia sẻ tên hay thông tin gì thì dùng lại.`
-
     } else {
       const summary = await buildRestaurantSummary(message)
       systemContent = `Bạn là trợ lý AI của nhà hàng. Hôm nay ${today}.
@@ -253,24 +291,28 @@ ${summary}`
 
     const completion = await groq.chat.completions.create({
       messages,
-      model:       MODEL,
+      model: MODEL,
       temperature: questionType === 'casual' ? 0.7 : 0.2,
-      max_tokens:  512,
+      max_tokens: 512,
     })
 
-    const answer     = completion.choices[0]?.message?.content ?? 'Không có câu trả lời'
+    const answer = completion.choices[0]?.message?.content ?? 'Không có câu trả lời'
     const tokensUsed = completion.usage?.total_tokens ?? null
 
     // ── Bước 6: Lưu vào DB ──
     if (activeConvId) {
       await supabase.from('ai_messages').insert([
-        { conversation_id: activeConvId, role: 'user',      content: message, tokens_used: null },
-        { conversation_id: activeConvId, role: 'assistant', content: answer,  tokens_used: tokensUsed },
+        { conversation_id: activeConvId, role: 'user', content: message, tokens_used: null },
+        {
+          conversation_id: activeConvId,
+          role: 'assistant',
+          content: answer,
+          tokens_used: tokensUsed,
+        },
       ])
     }
 
     return ApiResponse.success({ answer, conversationId: activeConvId })
-
   } catch (err: any) {
     console.error('[chat] Groq error:', err)
     return ApiResponse.error(`AI không phản hồi: ${err.message}`, 500)

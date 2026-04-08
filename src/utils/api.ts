@@ -1,6 +1,6 @@
 // src/utils/api.ts
 // Helper functions dùng trong API routes
-// Cung cấp: getUserFromRequest, requireRole, assert, ApiResponse
+// Cung cấp: getUserFromRequest, requireRole, requirePermission, assert, ApiResponse
 
 import { NextRequest, NextResponse } from 'next/server'
 import { UserRole } from '@/types/database'
@@ -24,15 +24,25 @@ export function assert(condition: unknown, message: string, status = 400): asser
   if (!condition) throw new ValidationError(message, status)
 }
 
-// Lấy user từ header (proxy.ts đã đính kèm x-user-id và x-user-role)
+// Lấy user từ header (proxy.ts đã đính kèm x-user-id, x-user-role, x-user-permissions)
 export function getUserFromRequest(request: NextRequest) {
   const userId = request.headers.get('x-user-id')
-  const role   = request.headers.get('x-user-role') as UserRole | null
+  const role = request.headers.get('x-user-role') as UserRole | null
+  const permissions = request.headers.get('x-user-permissions') ?? ''
+
   if (!userId || !role) return null
-  return { userId: parseInt(userId), role }
+  return {
+    userId: parseInt(userId),
+    role,
+    // Admin luôn có full quyền — permissions header có thể rỗng với admin
+    permissions: permissions ? permissions.split(',') : [],
+  }
 }
 
-// Kiểm tra role trong API route — trả về { user, error }
+/**
+ * requireRole — kiểm tra role trong API route (dùng cho các route chỉ cần role)
+ * Trả về { user, error }
+ */
 export function requireRole(request: NextRequest, roles: UserRole[]) {
   const user = getUserFromRequest(request)
   if (!user) return { user: null, error: ApiResponse.unauthorized() }
@@ -40,10 +50,42 @@ export function requireRole(request: NextRequest, roles: UserRole[]) {
   return { user, error: null }
 }
 
+/**
+ * requirePermission — kiểm tra permission cụ thể
+ * Admin luôn pass qua dù không có permission trong DB
+ * Dùng: const { user, error } = requirePermission(request, 'orders.create')
+ */
+export function requirePermission(request: NextRequest, permission: string) {
+  const user = getUserFromRequest(request)
+  if (!user) return { user: null, error: ApiResponse.unauthorized() }
+
+  // Admin bypass tất cả permission check
+  if (user.role === 'admin') return { user, error: null }
+
+  if (!user.permissions.includes(permission)) {
+    return { user, error: ApiResponse.forbidden() }
+  }
+  return { user, error: null }
+}
+
+/**
+ * requireAnyPermission — pass nếu có ít nhất 1 trong các permission
+ * Dùng: requireAnyPermission(request, ['orders.read', 'orders.create'])
+ */
+export function requireAnyPermission(request: NextRequest, permissions: string[]) {
+  const user = getUserFromRequest(request)
+  if (!user) return { user: null, error: ApiResponse.unauthorized() }
+
+  if (user.role === 'admin') return { user, error: null }
+
+  const hasAny = permissions.some((p) => user.permissions.includes(p))
+  if (!hasAny) return { user, error: ApiResponse.forbidden() }
+  return { user, error: null }
+}
+
 export const ApiResponse = {
   // Trả về response thành công với data
-  success: <T>(data: T, status = 200) =>
-    NextResponse.json({ success: true, data }, { status }),
+  success: <T>(data: T, status = 200) => NextResponse.json({ success: true, data }, { status }),
 
   // Trả về response lỗi với message
   error: (message: string, status = 400) =>
@@ -74,8 +116,10 @@ export const ApiResponse = {
     if (err && typeof err === 'object' && 'code' in err) {
       const e = err as { code: string; message?: string }
       switch (e.code) {
-        case '23505':    return ApiResponse.error('Dữ liệu đã tồn tại')
-        case 'PGRST116': return ApiResponse.notFound()
+        case '23505':
+          return ApiResponse.error('Dữ liệu đã tồn tại')
+        case 'PGRST116':
+          return ApiResponse.notFound()
       }
     }
 
