@@ -281,10 +281,10 @@ function resetAddFlow() {
   // Hàm addToCart: Kiểm tra đã chọn nguyên liệu, quy cách và số lượng hợp lệ chưa, nếu hợp lệ thì thêm vào cart (danh sách chờ nhập)
 const addToCart = () => {
   if (!currentIng || !selectedPkg) {
-    alert("Sếp ơi, chọn món với quy cách đã chứ!");
+    alert("chọn món với quy cách ?!");
     return;
   }
-  if (quantity <= 0) return alert("Số lượng phải lớn hơn 0 Sếp ạ.");
+  if (quantity <= 0) return alert("Số lượng phải lớn hơn 0.");
 
   const newItem = {
     tempId: Date.now(), // Tạo ID tạm để xóa/sửa cho dễ
@@ -304,7 +304,65 @@ const addToCart = () => {
   setQuantity(1);
   setUnitPrice(0);
 };
-  return (
+  // --- Khu vực Logic của Tab 3 ---
+
+// 1. Hàm tạo quy cách mới
+const handleCreatePkg = async (name: string, factor: string) => {
+  if (!name || !factor) {
+    alert("Điền đủ thông tin quy cách đã!");
+    return;
+  }
+  
+  try {
+    const res = await fetch('/api/ingredient-packages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ingredient_id: selectedIngId,
+        package_name: name,
+        conversion_factor: Number(factor)
+      })
+    });
+
+    if (res.ok) {
+      alert("Thêm quy cách thành công!");
+      // Reset input sau khi thêm
+      (document.getElementById('new_pkg_name') as HTMLInputElement).value = '';
+      (document.getElementById('new_conversion') as HTMLInputElement).value = '';
+      if (typeof refresh === 'function') refresh();
+    } else {
+      const err = await res.json();
+      alert("Lỗi: " + err.message);
+    }
+  } catch (error) {
+    alert("Không kết nối được API cấu hình!");
+  }
+};
+
+// 2. Hàm xóa quy cách
+const handleDeletePkg = async (id: number) => {
+  if (!confirm("Chắc chắn xóa quy cách này?")) return;
+  
+  try {
+    const res = await fetch('/api/ingredient-packages', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+
+    if (res.ok) {
+      alert("Đã xóa xong!");
+      if (typeof refresh === 'function') refresh();
+    } else {
+      alert("Lỗi: Quy cách này có thể đang được dùng trong đơn nhập hàng, không xóa được!");
+    }
+  } catch (error) {
+    alert("Lỗi hệ thống khi xóa!");
+  }
+};
+
+
+return (
     
 
     <div className='p-max max-w-7xl mx-auto space-y-10 '>
@@ -863,55 +921,49 @@ const ing = ingredients.find(i => i.id === Number(val)) as any;
 {/* Lưu đơn nhập hàng: tạo order trước rồi mới insert từng món vào, nếu có lỗi sẽ catch để tránh tạo đơn dở dang */}
 {cart.length > 0 && (
   <button
-    onClick={async () => {
-      if (!selectedSupplierId) {
-        alert("Chọn nhà cung cấp");
-        return;
+  className="mt-4 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg w-full font-bold"
+  onClick={async () => {
+    // 1. Kiểm tra nhanh
+    if (!selectedSupplierId || cart.length === 0) {
+      alert("Vui lòng chọn nhà cung cấp và thêm món vào giỏ!");
+      return;
+    }
+
+    try {
+      // 2. Gửi dữ liệu đi (Gọi duy nhất 1 API này thôi)
+      const res = await fetch('/api/ingredient-imports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          supplier_id: Number(selectedSupplierId),
+          items: cart.map(item => ({
+            package_id: item.package_id,
+            ingredient_id: item.ingredient_id,
+            quantity_imported: item.quantity,
+            unit_price: item.unit_price,
+            conversion_factor: item.conversion_factor
+          }))
+        })
+      });
+
+      // 3. Xử lý kết quả
+      if (res.ok) {
+        alert("✅ Xong! Đã tạo đơn và vào kho thành công.");
+        setCart([]); // Xóa giỏ hàng sau khi lưu
+        if (typeof refresh === 'function') refresh(); // Load lại số liệu nếu có hàm refresh
+      } else {
+        const errorData = await res.json();
+        alert("❌ Lỗi: " + (errorData.message || "Không thể lưu đơn"));
       }
 
-      try {
-        // 1. tạo order
-        const resOrder = await fetch('/api/import-orders', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            supplier_id: selectedSupplierId
-          })
-        });
-
-        const orderData = await resOrder.json();
-        const orderId = orderData.id;
-
-        // 2. insert items
-        await Promise.all(cart.map(item =>
-          fetch('/api/ingredient-imports', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              import_order_id: orderId,
-              package_id: item.package_id,
-              ingredient_id: item.ingredient_id,
-              conversion_factor: item.conversion_factor,
-              quantity_imported: item.quantity,
-              unit_price: item.unit_price
-            })
-          })
-        ));
-
-        alert("Nhập hàng thành công!");
-
-        setCart([]);
-        refresh();
-
-      } catch (err) {
-        console.error(err);
-        alert("Lỗi nhập hàng!");
-      }
-    }}
-    className="mt-4 bg-green-600 text-white px-4 py-2 rounded-lg"
-  >
-    💾 Lưu đơn nhập
-  </button>
+    } catch (err: any) {
+      console.error("Lỗi khi fetch:", err);
+      alert("Lỗi kết nối hệ thống!");
+    }
+  }}
+>
+  💾 Xác nhận Lưu đơn & Nhập kho
+</button>
 )}
     </div>
   </div>
@@ -920,9 +972,79 @@ const ing = ingredients.find(i => i.id === Number(val)) as any;
 )}
 {/*Tab 3 quản lý đơn nhập hàng tổng */}
 {activeTab === 3 && (
-  <div>
-    <h1 className="text-2xl font-bold mb-4">Quản lý đơn nhập hàng tổng</h1>
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    {/* 1. Bên trái: Chọn Nguyên liệu */}
+    <div className="card bg-base-100 shadow p-4 border">
+      <h3 className="font-bold mb-4">1. Chọn nguyên liệu</h3>
+      <select 
+        className="select select-bordered w-full"
+        value={selectedIngId || ""}
+        onChange={(e) => {
+          const id = e.target.value;
+          setSelectedIngId(id);
+          const ing = ingredients.find(i => i.id === Number(id));
+          setCurrentIng((ing || null) as any);
+        }}
+      >
+        <option value="">-- Chọn món cần cấu hình --</option>
+        {ingredients.map(ing => (
+          <option key={ing.id} value={ing.id}>{ing.name}</option>
+        ))}
+      </select>
     </div>
+
+    {/* 2. Bên phải: Danh sách & Thêm mới */}
+    <div className="md:col-span-2 card bg-base-100 shadow p-4 border">
+      <h3 className="font-bold mb-4">2. Quy cách đóng gói của: {currentIng?.name || "..."}</h3>
+      
+      {!currentIng ? (
+        <div className="text-center py-10 text-gray-400">Vui lòng chọn nguyên liệu bên trái trước</div>
+      ) : (
+        <>
+          {/* Table danh sách quy cách */}
+          <table className="table w-full mb-6">
+            <thead>
+              <tr className="bg-base-200">
+                <th>Tên quy cách</th>
+                <th>Hệ số quy đổi</th>
+                <th>Trạng thái</th>
+                <th>Hành động</th>
+              </tr>
+            </thead>
+            <tbody>
+              {currentIng.packages?.map((pkg: any) => (
+                <tr key={pkg.id}>
+                  <td>{pkg.package_name}</td>
+                  <td>x{pkg.conversion_factor}</td>
+                  <td>{pkg.is_active ? "✅ Đang dùng" : "❌ Tạm ngưng"}</td>
+                  <td>
+                    <button className="btn btn-ghost btn-xs text-error" onClick={() => handleDeletePkg(pkg.id)}>Xóa</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* Form thêm quy cách mới */}
+          <div className="p-4 border-t bg-base-50 rounded">
+            <h4 className="font-semibold mb-2 text-sm text-blue-600">➕ Thêm quy cách mới</h4>
+            <div className="flex gap-2">
+              <input type="text" placeholder="Tên (VD: Thùng 24)" className="input input-bordered input-sm flex-1" id="new_pkg_name" />
+              <input type="number" placeholder="Hệ số (VD: 24)" className="input input-bordered input-sm w-32" id="new_conversion" />
+              <button 
+                className="btn btn-primary btn-sm"
+                onClick={() => {
+                  const name = (document.getElementById('new_pkg_name') as HTMLInputElement).value;
+                  const factor = (document.getElementById('new_conversion') as HTMLInputElement).value;
+                  handleCreatePkg(name, factor);
+                }}
+              >Lưu</button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  </div>
 )}
 
 {showImportModal && (
