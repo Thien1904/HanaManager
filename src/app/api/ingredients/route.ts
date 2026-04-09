@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const supabase = createAdminClient()
     const { data, error: dbError } = await supabase
       .from('ingredients')
-      .select('id, name, unit, stock_quantity, min_stock_level, updated_at')
+      .select('id, name, unit, stock_quantity, min_stock_level, updated_at, packages:ingredient_packages(*)')
       .order('name')
 
     if (dbError) throw dbError
@@ -144,3 +144,5 @@ export async function DELETE(request: NextRequest) {
     return ApiResponse.handle(err)
   }
 }
+
+// Lấy danh sách nguyên liệu  

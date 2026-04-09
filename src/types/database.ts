@@ -3,6 +3,8 @@
 // Type definitions khớp với schema PostgreSQL
 // ================================================
 
+import { Timestamp } from "next/dist/server/lib/cache-handlers/types"
+
 // --- ENUMS ---
 export type UserRole = 'admin' | 'waiter' | 'chef'
 export type TableStatus = 'available' | 'occupied' | 'reserved'
@@ -236,6 +238,7 @@ export interface Ingredient {
   updated_at: string
 }
 
+
 export interface AiConversation {
   id: number
   user_id: number
@@ -271,3 +274,36 @@ export interface WorkScheduleWithDetails extends WorkSchedule {
   user: Pick<User, 'id' | 'full_name'>
   shift_template: ShiftTemplate
 }
+export interface Ingredient_Package {
+  id: number
+  ingredient_id: number
+  package_name: string
+  conversion_factor: number
+  created_at: string
+ }
+export interface Ingredient_Import {
+  id: number  
+  package_id: number
+  quantity_imported: number
+  unit_price: number
+  created_at: string
+}
+// join tables để hiển thị lên màn hình nhập hàng
+export interface Ingredient_Import_With_Details extends Ingredient_Import {
+  ingredient_name?: string; 
+  package_display_name?: string;
+}
+// 1. Định nghĩa riêng cho quy cách đóng gói của nguyên liệu (ingredient_packages)
+export interface IngredientPackage {
+  id: number
+  ingredient_id: number
+  package_name: string
+  conversion_factor: number
+  is_active: boolean;
+}
+// 2. Định nghĩa Nguyên liệu có kèm danh sách Quy cách 
+export interface IngredientWithPackages extends Ingredient {
+  packages: IngredientPackage[]; 
+}
+
+

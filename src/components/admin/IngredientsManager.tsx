@@ -10,6 +10,25 @@ import { useIngredients, Ingredient } from '@/hooks/useIngredients'
 import { useAdminProducts } from '@/hooks/useAdminProducts'
 import IngredientFormModal from '@/components/admin/IngredientFormModal'
 import { cls, filterTab } from '@/utils/styles'
+import IngredientImportForm from '@/components/admin/IngredientImport' // Import cái form vừa viết
+import { IngredientWithPackages as DB_IngredientWithPackages } from '@/types/database'
+
+// Định nghĩa cho  Quy cách (Thùng, Két, Lon...)
+interface IngredientPackage {
+  id: number;
+  ingredient_id: number;
+  package_name: string;
+  conversion_factor: number;
+}
+// Định nghĩa cho Nguyên liệu có kèm theo mảng các Quy cách
+interface IngredientWithPackages {
+  id: number;
+  name: string;
+  unit: string;
+  stock_quantity: number;
+  min_stock_level: number;
+  packages: IngredientPackage[]; 
+}
 
 interface RecipeRow {
   id: number
@@ -30,9 +49,40 @@ interface StagedIngredient {
   unit:           string
   quantity:       number
 }
+interface supplier {
+  id: number
+  name: string
+  
+  
+}
 
 export default function IngredientManager() {
   //#region Constants
+
+ useEffect(() => {
+  fetch('/api/suppliers')
+    .then(res => res.json())
+    .then(data => {
+      console.log("RAW:", data);
+
+      if (Array.isArray(data)) {
+        setSuppliers(data);
+      } else if (Array.isArray(data.data)) {
+        setSuppliers(data.data);
+      } else {
+        setSuppliers([]); // fallback
+      }
+    });
+}, []);
+const [unitPrice, setUnitPrice] = useState<number>(0);
+
+  const [currentIng, setCurrentIng] = useState<IngredientWithPackages | null>(null);
+const [selectedPkg, setSelectedPkg] = useState<IngredientPackage | null>(null);
+// State cho danh sách nhà cung cấp, để chọn khi tạo đơn nhập hàng
+const [suppliers, setSuppliers] = useState<supplier[]>([]);
+  //state quản lý tab đang active
+ const [activeTab, setActiveTab] = useState<number>(1);
+ //
   const { ingredients, loading, error, refresh } = useIngredients()
   const { products } = useAdminProducts()
 
@@ -98,13 +148,7 @@ const sortIcon = (key: typeof sortKey) =>
   : sortedIngredients.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   //end 3
   const lowStockCount = ingredients.filter((i) => i.stock_quantity <= i.min_stock_level).length
-  
-  
-
- 
-  
-
-  // Hàm loadAllRecipes — gọi API lấy công thức cho tất cả món, lưu vào state recipes
+   // Hàm loadAllRecipes — gọi API lấy công thức cho tất cả món, lưu vào state recipes
   const loadAllRecipes = useCallback(async () => {
     if (!products.length) return
     setLoadingRecipes(true)
@@ -121,6 +165,22 @@ const sortIcon = (key: typeof sortKey) =>
       setLoadingRecipes(false)
     }
   }, [products])
+
+  // State cho modal nhập hàng quy đổi
+  const [showImportModal, setShowImportModal] = useState(false)
+ //state cho đơn nhập hàng tổng, lưu nguyên liệu đang chọn, số lượng, giá tiền để gửi lên API tạo đơn nhập hàng
+ const [selectedIngId, setSelectedIngId] = useState<number | string>('')
+ // Danh sách các món đang chờ nhập, mỗi món gồm: id nguyên liệu, tên nguyên liệu, đơn vị, số lượng, giá tiền
+ const [cart, setCart] = useState<any[]>([]); // Danh sách các món đang chờ nhập
+// State cho quy cách đóng gói của nguyên liệu, khi chọn nguyên liệu sẽ fetch các quy cách tương ứng để chọn tiếp
+const [selectedPkgId, setSelectedPkgId] = useState<number | null>(null);
+ 
+// State cho đơn nhập hàng tổng
+const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
+
+const [quantity, setQuantity] = useState<number>(1);
+const [price, setPrice] = useState<number>(0);
+
   useEffect(() => { loadAllRecipes() }, [loadAllRecipes])
 //#endregion
   
@@ -157,8 +217,8 @@ function resetAddFlow() {
     const qty = parseFloat(pickQty)
     if (!pickQty || isNaN(qty) || qty <= 0) { setAddError('Định lượng phải lớn hơn 0'); return }
     if (staged.find((s) => s.ingredientId === pickIngId)) { setAddError('Nguyên liệu này đã được thêm'); return }
-    const ing = ingredients.find((i) => i.id === pickIngId)!
-    setStaged((prev) => [...prev, { ingredientId: ing.id, ingredientName: ing.name, unit: ing.unit, quantity: qty }])
+  const ing = ingredients.find((i) => i.id === Number(pickIngId)) as DB_IngredientWithPackages | undefined;
+    setStaged((prev) => [...prev, { ingredientId: ing?.id, ingredientName: ing?.name, unit: ing?.unit, quantity: qty }])
     setPickIngId(0)
     setPickQty('')
   }
@@ -218,20 +278,68 @@ function resetAddFlow() {
   const selectedProduct = products.find((p: any) => p.id === selectedProductId)
 
   if (error) return <div className='p-6 text-center text-red-500'>{error}</div>
+  // Hàm addToCart: Kiểm tra đã chọn nguyên liệu, quy cách và số lượng hợp lệ chưa, nếu hợp lệ thì thêm vào cart (danh sách chờ nhập)
+const addToCart = () => {
+  if (!currentIng || !selectedPkg) {
+    alert("Sếp ơi, chọn món với quy cách đã chứ!");
+    return;
+  }
+  if (quantity <= 0) return alert("Số lượng phải lớn hơn 0 Sếp ạ.");
 
+  const newItem = {
+    tempId: Date.now(), // Tạo ID tạm để xóa/sửa cho dễ
+    ingredient_id: currentIng.id,
+    ingredient_name: currentIng.name,
+    package_id: selectedPkg.id,
+    package_name: selectedPkg.package_name,
+    conversion_factor: selectedPkg.conversion_factor,
+    quantity: quantity,
+    unit_price: unitPrice,
+    total: quantity * unitPrice
+  };
+
+  setCart([...cart, newItem]);
+  
+  // Thêm xong thì reset mấy ô nhập cho nhân viên rảnh tay
+  setQuantity(1);
+  setUnitPrice(0);
+};
   return (
-    <div className='p-6 max-w-7xl mx-auto space-y-10'>
+    
 
-      {/* PHẦN 1: NGUYÊN LIỆU */}
+    <div className='p-max max-w-7xl mx-auto space-y-10 '>
+{/*Menu tab chuyển giữa quản lý nguyên liệu và công thức*/}
+<div className="flex gap-4 border-b my-4">
+  <button onClick={() => setActiveTab(1)} className={activeTab === 1 ? "text-blue-600 border-b-2 border-blue-600" : "" }>
+          Nguyên liệu & Công thức món
+        </button>
+        <button onClick={() => setActiveTab(2)} className={activeTab === 2 ? "text-blue-600 border-b-2 border-blue-600" : ""}>
+        Nhập hàng
+        </button>
+        <button onClick={() => setActiveTab(3)} className={activeTab === 3 ? "text-blue-600 border-b-2 border-blue-600" : "" }>
+         Quản lý đơn nhập hàng
+        </button>
+      
+</div>
+{/* --- NỘI DUNG --- */}
+{activeTab === 1 && (
+  <div>
+         {/* PHẦN 1: NGUYÊN LIỆU */}
       <div>
         <div className='flex items-center justify-between mb-6'>
           <div>
-            <h1 className='text-2xl font-semibold text-gray-900'>Nguyên liệu</h1>
+            <h2 className='text-lg font-medium text-gray-800'>Danh sách nguyên liệu</h2>
             <p className='text-sm text-gray-500 mt-1'>
               {ingredients.length} nguyên liệu
               {lowStockCount > 0 && <span className='ml-2 text-red-500 font-medium'>· {lowStockCount} sắp hết</span>}
             </p>
           </div>
+          <button 
+          onClick={() => setShowImportModal(true)}
+          className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition"
+        >
+          + Nhập hàng quy đổi
+        </button>
           <button onClick={() => { setEditItem(null); setShowModal(true) }} className={cls.btnPrimary}>
             + Thêm nguyên liệu
           </button>
@@ -377,6 +485,7 @@ function resetAddFlow() {
           </div>
         )}
       </div>
+      
 
       {/* PHẦN 2: CÔNG THỨC MÓN ĂN */}
       <div>
@@ -583,7 +692,246 @@ function resetAddFlow() {
           </div>
         )}
       </div>
+      </div>
+)}
+{/*Tab 2 nhập hàng quy đổi */}
 
+{activeTab === 2 && (
+  <div>
+    <h1 className="text-2xl font-bold mb-4">Nhập hàng</h1>
+    <div className="space-y-6">
+  {/* KHỐI 1: THÔNG TIN CHUNG */}
+  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label className="block text-sm font-bold text-gray-700 mb-2">🏪 NHÀ CUNG CẤP</label>
+        <select 
+          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+          value={selectedSupplierId}
+          onChange={(e) => setSelectedSupplierId(e.target.value)}
+        >
+          {Array.isArray(suppliers) && suppliers.map(s => (
+  <option key={s.id} value={String(s.id)}>
+    {s.name}
+  </option>
+))}
+        </select>
+      </div>
+      <div>
+        <label className="block text-sm font-bold text-gray-700 mb-2">📅 NGÀY NHẬP</label>
+        <input type="text" disabled value={new Date().toLocaleDateString('vi-VN')} className="w-full p-3 bg-gray-50 border rounded-lg text-gray-500" />
+      </div>
+    </div>
+  </div>
+
+  {/* KHỐI 2: CHỌN MÓN VÀ QUY CÁCH */}
+  <div className="bg-blue-50 p-6 rounded-xl border border-blue-100">
+    <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+      <div className="md:col-span-1">
+        <label className="block text-sm font-bold text-blue-800 mb-2">🔍 TÌM NGUYÊN LIỆU</label>
+        <select 
+          className="w-full p-3 border-2 border-blue-200 rounded-lg focus:border-blue-500"
+          value={selectedIngId}
+         onChange={(e) => {
+  const val = e.target.value;
+  setSelectedIngId(val); // Lưu ID (dạng string/number tùy state
+
+  if (!val) {
+    setCurrentIng(null);
+    return;
+  }
+
+  // Tìm nguyên liệu và ép kiểu an toàn
+const ing = ingredients.find(i => i.id === Number(val)) as any;
+  setCurrentIng((ing || null) as unknown as IngredientWithPackages | null);
+
+  // QUAN TRỌNG: Reset quy cách khi đổi món
+  setSelectedPkgId(null); 
+  setSelectedPkg(null);
+          }}
+        >
+          <option value="">-- Chọn nguyên liệu --</option>
+          {ingredients.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-bold text-blue-800 mb-2">📦 QUY CÁCH</label>
+        <select 
+          className="w-full p-3 border-2 border-blue-200 rounded-lg"
+          value={selectedPkgId}
+          onChange={(e) => {
+  const pkgId = Number(e.target.value);
+  setSelectedPkgId(pkgId);
+
+  const pkg = currentIng?.packages?.find(p => p.id === pkgId);
+  setSelectedPkg(pkg || null);
+}}
+          disabled={!currentIng}
+        >
+          <option value="">-- Chọn quy cách --</option>
+          {currentIng?.packages?.map(p => (
+            <option key={p.id} value={p.id}>{p.package_name} (x{p.conversion_factor} {currentIng.unit})</option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-bold text-blue-800 mb-2">🔢 SỐ LƯỢNG</label>
+        <input 
+          type="number" 
+          className="w-full p-3 border-2 border-blue-200 rounded-lg" 
+          value={quantity} 
+          onChange={(e) => setQuantity(Number(e.target.value))}
+        />
+      </div>
+<div>
+  <label className="block text-sm font-bold text-blue-800 mb-2">💰 GIÁ</label>
+  <input 
+    type="number" 
+    className="w-full p-3 border-2 border-blue-200 rounded-lg" 
+    value={unitPrice} 
+    onChange={(e) => setUnitPrice(Number(e.target.value))}
+  />
+</div>
+      <button 
+       onClick={() => {
+  if (!currentIng || !selectedPkg || quantity <= 0) {
+    alert('Vui lòng chọn nguyên liệu, quy cách và số lượng hợp lệ!');
+    return;
+  }
+  const newItem = {
+    tempId: Date.now(),
+    ingredient_id: currentIng.id,
+    ingredient_name: currentIng.name,
+    package_id: selectedPkg.id,
+    package_name: selectedPkg.package_name,
+    conversion_factor: selectedPkg.conversion_factor, // snapshot
+    quantity: quantity,
+    unit_price: unitPrice,
+    total: quantity * unitPrice
+  };
+   setCart((prev) => [...prev, newItem]);
+
+  // reset UI
+  setQuantity(1);
+  setUnitPrice(0);
+        }
+      }
+        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-all"
+      >
+        ➕ THÊM VÀO GIỎ
+      </button>
+     {/* Hiển thị cart (danh sách chờ nhập*/}
+      {cart.length > 0 && (
+  <div className="bg-white p-4 rounded-xl border mt-4">
+    <h3 className="font-bold mb-2">🛒 Danh sách nhập</h3>
+
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="text-left border-b">
+          <th>Tên</th>
+          <th>Quy cách</th>
+          <th>SL</th>
+          <th>Giá</th>
+          <th>Tổng</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {cart.map(item => (
+          <tr key={item.tempId} className="border-b">
+            <td>{item.ingredient_name}</td>
+            <td>{item.package_name}</td>
+            <td>{item.quantity}</td>
+            <td>{item.unit_price}</td>
+            <td>{item.total}</td>
+            <td>
+              <button
+                onClick={() => setCart(cart.filter(i => i.tempId !== item.tempId))}
+                className="text-red-500"
+              >
+                Xóa
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+)}
+{/* Lưu đơn nhập hàng: tạo order trước rồi mới insert từng món vào, nếu có lỗi sẽ catch để tránh tạo đơn dở dang */}
+{cart.length > 0 && (
+  <button
+    onClick={async () => {
+      if (!selectedSupplierId) {
+        alert("Chọn nhà cung cấp");
+        return;
+      }
+
+      try {
+        // 1. tạo order
+        const resOrder = await fetch('/api/import-orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            supplier_id: selectedSupplierId
+          })
+        });
+
+        const orderData = await resOrder.json();
+        const orderId = orderData.id;
+
+        // 2. insert items
+        await Promise.all(cart.map(item =>
+          fetch('/api/ingredient-imports', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              import_order_id: orderId,
+              package_id: item.package_id,
+              ingredient_id: item.ingredient_id,
+              conversion_factor: item.conversion_factor,
+              quantity_imported: item.quantity,
+              unit_price: item.unit_price
+            })
+          })
+        ));
+
+        alert("Nhập hàng thành công!");
+
+        setCart([]);
+        refresh();
+
+      } catch (err) {
+        console.error(err);
+        alert("Lỗi nhập hàng!");
+      }
+    }}
+    className="mt-4 bg-green-600 text-white px-4 py-2 rounded-lg"
+  >
+    💾 Lưu đơn nhập
+  </button>
+)}
+    </div>
+  </div>
+</div>
+    </div>
+)}
+{/*Tab 3 quản lý đơn nhập hàng tổng */}
+{activeTab === 3 && (
+  <div>
+    <h1 className="text-2xl font-bold mb-4">Quản lý đơn nhập hàng tổng</h1>
+    </div>
+)}
+
+{showImportModal && (
+        <IngredientImportForm 
+          ingredients={ingredients} 
+          onClose={() => setShowImportModal(false)} 
+          onChanged={refresh} 
+        />
+      )}
       {showModal && (
         <IngredientFormModal
           ingredient={editItem}
