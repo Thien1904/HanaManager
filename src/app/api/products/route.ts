@@ -17,22 +17,24 @@ export async function GET(request: NextRequest) {
   if (error) return error
 
   try {
-    const { searchParams }   = new URL(request.url)
-    const categoryId         = searchParams.get('category_id')
+    const { searchParams } = new URL(request.url)
+    const categoryId = searchParams.get('category_id')
     const includeUnavailable = searchParams.get('all') === 'true'
 
     const supabase = createAdminClient()
 
     let query = supabase
       .from('products')
-      .select(`
+      .select(
+        `
         id, name, description, price, image_url, is_available,
         category_id, print_kitchen, print_bar, print_label,
         categories ( id, name ),
         product_variants (
           id, name, price, is_default, is_active, sort_order
         )
-      `)
+      `,
+      )
       .eq('is_deleted', false)
       .order('name')
 
@@ -65,33 +67,44 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { name, category_id, price, description, image_url, is_available,
-            print_kitchen, print_bar, print_label } = body
+    const {
+      name,
+      category_id,
+      price,
+      description,
+      image_url,
+      is_available,
+      print_kitchen,
+      print_bar,
+      print_label,
+    } = body
 
     assert(name?.trim(), 'Tên món không được trống')
-    assert(category_id,  'Chọn danh mục')
-    assert(price >= 0,   'Giá không hợp lệ')
+    assert(category_id, 'Chọn danh mục')
+    assert(price >= 0, 'Giá không hợp lệ')
 
-    const supabase = createAdminClient()   
+    const supabase = createAdminClient()
     const { data, error: dbError } = await supabase
       .from('products')
       .insert({
-        name:          name.trim(),
-        category_id:   Number(category_id),
+        name: name.trim(),
+        category_id: Number(category_id),
         price,
-        description:   description?.trim() ?? null,
-        image_url:     image_url ?? null,
-        is_available:  is_available ?? true,
+        description: description?.trim() ?? null,
+        image_url: image_url ?? null,
+        is_available: is_available ?? true,
         print_kitchen: print_kitchen ?? true,
-        print_bar:     print_bar     ?? false,
-        print_label:   print_label   ?? false,
+        print_bar: print_bar ?? false,
+        print_label: print_label ?? false,
       })
-      .select(`
+      .select(
+        `
         id, name, description, price, image_url, is_available,
         category_id, print_kitchen, print_bar, print_label,
         categories ( id, name ),
         product_variants ( id, name, price, is_default, is_active, sort_order )
-      `)
+      `,
+      )
       .single()
 
     if (dbError) throw dbError
@@ -115,14 +128,20 @@ export async function PUT(request: NextRequest) {
     assert(id, 'Thiếu id')
 
     const allowed = [
-      'name', 'category_id', 'price', 'description',
-      'image_url', 'is_available',
-      'print_kitchen', 'print_bar', 'print_label',
+      'name',
+      'category_id',
+      'price',
+      'description',
+      'image_url',
+      'is_available',
+      'print_kitchen',
+      'print_bar',
+      'print_label',
     ]
     const safeUpdates = Object.fromEntries(
-      Object.entries(updates).filter(([k]) => allowed.includes(k))
+      Object.entries(updates).filter(([k]) => allowed.includes(k)),
     )
-    if (safeUpdates.name)        safeUpdates.name = (safeUpdates.name as string).trim()
+    if (safeUpdates.name) safeUpdates.name = (safeUpdates.name as string).trim()
     if (safeUpdates.category_id) safeUpdates.category_id = Number(safeUpdates.category_id)
 
     const supabase = createAdminClient()
@@ -131,12 +150,14 @@ export async function PUT(request: NextRequest) {
       .update(safeUpdates)
       .eq('id', Number(id))
       .eq('is_deleted', false)
-      .select(`
+      .select(
+        `
         id, name, description, price, image_url, is_available,
         category_id, print_kitchen, print_bar, print_label,
         categories ( id, name ),
         product_variants ( id, name, price, is_default, is_active, sort_order )
-      `)
+      `,
+      )
       .single()
 
     if (dbError) throw dbError
