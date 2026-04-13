@@ -4,7 +4,8 @@
 
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { ApiResponse, requireRole, assert } from '@/utils/api'
+import { requireRole } from '@/utils/api'
+import { ApiResponse } from '@/utils/api-response'
 
 /**
  * POST: Tạo phiếu nhập hàng (Theo lô nhiều món)
@@ -21,10 +22,15 @@ export async function POST(request: NextRequest) {
     // 1. TẠO VỎ ĐƠN HÀNG TRỰC TIẾP TẠI ĐÂY
     const { data: order, error: errOrder } = await supabase
       .from('import_orders')
-      .insert([{ 
-        supplier_id: Number(supplier_id),
-        total_amount: items.reduce((sum: number, i: any) => sum + (i.quantity_imported * i.unit_price), 0)
-      }])
+      .insert([
+        {
+          supplier_id: Number(supplier_id),
+          total_amount: items.reduce(
+            (sum: number, i: any) => sum + i.quantity_imported * i.unit_price,
+            0,
+          ),
+        },
+      ])
       .select()
       .single()
 
@@ -37,12 +43,10 @@ export async function POST(request: NextRequest) {
       ingredient_id: item.ingredient_id,
       quantity_imported: item.quantity_imported,
       unit_price: item.unit_price,
-      conversion_factor: item.conversion_factor // Lấy từ cart truyền lên
+      conversion_factor: item.conversion_factor, // Lấy từ cart truyền lên
     }))
 
-    const { error: errItems } = await supabase
-      .from('ingredient_imports')
-      .insert(payload)
+    const { error: errItems } = await supabase.from('ingredient_imports').insert(payload)
 
     if (errItems) throw errItems
 

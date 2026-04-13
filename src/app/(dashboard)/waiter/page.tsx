@@ -801,7 +801,6 @@ export default function WaiterPOSPage() {
             items: [
               {
                 productId: item.products!.id,
-                // THÊM DÒNG NÀY: Lấy variant_id từ chính cái item đang bấm
                 variantId: (item as any).variant_id || null,
                 quantity: qty,
                 notes,

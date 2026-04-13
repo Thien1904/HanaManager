@@ -5,7 +5,8 @@
 
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { ApiResponse, requireRole, assert } from '@/utils/api'
+import { requireRole, assert } from '@/utils/api'
+import { ApiResponse } from '@/utils/api-response' // Chuẩn hóa response API
 
 /**
  * GET /api/tables — Lấy danh sách bàn kèm order đang active
@@ -19,13 +20,15 @@ export async function GET(request: NextRequest) {
     const supabase = createAdminClient()
     const { data, error: dbError } = await supabase
       .from('tables')
-      .select(`
+      .select(
+        `
         id, table_number, status,
         orders (
           id, status, total_price, created_at,
           users ( id, full_name )
         )
-      `)
+      `,
+      )
       // Tối ưu: Chỉ lấy các đơn hàng chưa hoàn tất để giảm tải dữ liệu
       .not('orders.status', 'in', '(paid,cancelled)')
       .order('table_number')
@@ -63,7 +66,7 @@ export async function POST(request: NextRequest) {
       .from('tables')
       .insert({
         table_number: table_number.toString().trim(),
-        status:       'available',
+        status: 'available',
       })
       .select('id, table_number, status')
       .single()
@@ -87,8 +90,8 @@ export async function PUT(request: NextRequest) {
   try {
     const { id, table_number } = await request.json()
 
-    assert(id,                                    'Thiếu id')
-    assert(table_number?.toString().trim(),        'Số/tên bàn không được trống')
+    assert(id, 'Thiếu id')
+    assert(table_number?.toString().trim(), 'Số/tên bàn không được trống')
 
     const supabase = createAdminClient()
     const { data, error: dbError } = await supabase
@@ -131,7 +134,7 @@ export async function DELETE(request: NextRequest) {
     assert(table, 'Không tìm thấy bàn')
     assert(
       table.status === 'available',
-      `Bàn ${table.table_number} đang có khách hoặc đã đặt trước, không thể xóa`
+      `Bàn ${table.table_number} đang có khách hoặc đã đặt trước, không thể xóa`,
     )
 
     // Kiểm tra còn order chưa thanh toán không
@@ -144,10 +147,7 @@ export async function DELETE(request: NextRequest) {
 
     assert(!count || count === 0, `Bàn còn ${count} order chưa xử lý, không thể xóa`)
 
-    const { error: dbError } = await supabase
-      .from('tables')
-      .delete()
-      .eq('id', Number(id))
+    const { error: dbError } = await supabase.from('tables').delete().eq('id', Number(id))
 
     if (dbError) throw dbError
     return ApiResponse.success({ id: Number(id) })

@@ -1,7 +1,8 @@
 // src/app/api/orders/[orderId]/route.ts
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { ApiResponse, requireRole } from '@/utils/api'
+import { requireRole } from '@/utils/api'
+import { ApiResponse } from '@/utils/api-response' // Chuẩn hóa response API
 import { promises } from 'dns'
 
 export async function GET(

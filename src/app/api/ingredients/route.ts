@@ -4,7 +4,8 @@
 
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server' // Supabase client bypass RLS
-import { ApiResponse, requireRole, assert } from '@/utils/api'   // Helper response + kiểm tra quyền
+import { requireRole, assert } from '@/utils/api' // Helper response + kiểm tra quyền
+import { ApiResponse } from '@/utils/api-response' // Chuẩn hóa response API
 
 /**
  * GET /api/ingredients
@@ -19,12 +20,13 @@ export async function GET(request: NextRequest) {
     const supabase = createAdminClient()
     const { data, error: dbError } = await supabase
       .from('ingredients')
-      .select('id, name, unit, stock_quantity, min_stock_level, updated_at, packages:ingredient_packages(*)')
+      .select(
+        'id, name, unit, stock_quantity, min_stock_level, updated_at, packages:ingredient_packages(*)',
+      )
       .order('name')
 
     if (dbError) throw dbError
     return ApiResponse.success(data)
-
   } catch (err) {
     return ApiResponse.handle(err)
   }
@@ -43,17 +45,17 @@ export async function POST(request: NextRequest) {
   try {
     const { name, unit, stock_quantity, min_stock_level } = await request.json()
 
-    assert(name?.trim(),'Tên nguyên liệu không được trống')
-    assert(unit?.trim(),'Đơn vị không được trống')
-    assert((stock_quantity ?? 0) >= 0,'Tồn kho không được âm')
+    assert(name?.trim(), 'Tên nguyên liệu không được trống')
+    assert(unit?.trim(), 'Đơn vị không được trống')
+    assert((stock_quantity ?? 0) >= 0, 'Tồn kho không được âm')
 
     const supabase = createAdminClient()
     const { data, error: dbError } = await supabase
       .from('ingredients')
       .insert({
-        name:            name.trim(),
-        unit:            unit.trim(),
-        stock_quantity:  stock_quantity ?? 0,
+        name: name.trim(),
+        unit: unit.trim(),
+        stock_quantity: stock_quantity ?? 0,
         min_stock_level: min_stock_level ?? 5,
       })
       .select('id, name, unit, stock_quantity, min_stock_level, updated_at')
@@ -61,7 +63,6 @@ export async function POST(request: NextRequest) {
 
     if (dbError) throw dbError
     return ApiResponse.success(data, 201)
-
   } catch (err) {
     return ApiResponse.handle(err)
   }
@@ -85,7 +86,7 @@ export async function PUT(request: NextRequest) {
     // Chỉ cho phép update các cột hợp lệ trong schema
     const allowed = ['name', 'unit', 'stock_quantity', 'min_stock_level']
     const safeUpdates: Record<string, any> = Object.fromEntries(
-      Object.entries(updates).filter(([k]) => allowed.includes(k))
+      Object.entries(updates).filter(([k]) => allowed.includes(k)),
     )
 
     if (safeUpdates.name) safeUpdates.name = safeUpdates.name.trim()
@@ -102,7 +103,6 @@ export async function PUT(request: NextRequest) {
 
     if (dbError) throw dbError
     return ApiResponse.success(data)
-
   } catch (err) {
     return ApiResponse.handle(err)
   }
@@ -129,20 +129,16 @@ export async function DELETE(request: NextRequest) {
       .eq('ingredient_id', Number(id))
     assert(
       !count || count === 0,
-      `Nguyên liệu đang dùng trong ${count} công thức. Xóa khỏi công thức trước.`
+      `Nguyên liệu đang dùng trong ${count} công thức. Xóa khỏi công thức trước.`,
     )
 
-    const { error: dbError } = await supabase
-      .from('ingredients')
-      .delete()
-      .eq('id', Number(id))
+    const { error: dbError } = await supabase.from('ingredients').delete().eq('id', Number(id))
 
     if (dbError) throw dbError
     return ApiResponse.success({ id: Number(id) })
-
   } catch (err) {
     return ApiResponse.handle(err)
   }
 }
 
-// Lấy danh sách nguyên liệu  
+// Lấy danh sách nguyên liệu

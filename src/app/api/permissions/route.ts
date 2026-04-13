@@ -5,7 +5,8 @@
 
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { ApiResponse, requireRole, assert } from '@/utils/api'
+import { requireRole, assert } from '@/utils/api'
+import { ApiResponse } from '@/utils/api-response' // Chuẩn hóa response API
 
 /**
  * GET /api/permissions?user_id=1

@@ -4,12 +4,13 @@
 
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { ApiResponse, requireRole } from '@/utils/api'
+import { requireRole } from '@/utils/api'
+import { ApiResponse } from '@/utils/api-response' // Chuẩn hóa response API
 
 // POST /api/orders/[orderId]/payment — Thanh toán
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ orderId: string }> }
+  { params }: { params: Promise<{ orderId: string }> },
 ) {
   const { user, error } = requireRole(request, ['admin', 'waiter'])
   if (error) return error
@@ -20,11 +21,11 @@ export async function POST(
 
   const body = await request.json()
   const {
-    paymentMethod  = 'cash',
-    discountType   = 'none',
-    discountValue  = 0,
+    paymentMethod = 'cash',
+    discountType = 'none',
+    discountValue = 0,
     amountReceived = 0,
-    note           = '',
+    note = '',
   } = body
 
   const supabase = createAdminClient()
@@ -37,43 +38,42 @@ export async function POST(
     .single()
 
   if (orderError || !order) return ApiResponse.notFound('Đơn hàng')
-  if (order.status === 'paid')      return ApiResponse.error('Đơn hàng đã được thanh toán')
+  if (order.status === 'paid') return ApiResponse.error('Đơn hàng đã được thanh toán')
   if (order.status === 'cancelled') return ApiResponse.error('Đơn hàng đã bị hủy')
 
   // Tính tiền giảm giá
   let discountAmount = 0
   if (discountType === 'percent') {
-    discountAmount = Math.round(order.total_price * discountValue / 100)
+    discountAmount = Math.round((order.total_price * discountValue) / 100)
   } else if (discountType === 'amount') {
     discountAmount = Math.min(discountValue, order.total_price)
   }
 
-  const finalAmount  = order.total_price - discountAmount
+  const finalAmount = order.total_price - discountAmount
   const changeAmount = paymentMethod === 'cash' ? Math.max(0, amountReceived - finalAmount) : 0
 
   if (paymentMethod === 'cash' && amountReceived < finalAmount) {
-    return ApiResponse.error(`Tiền nhận (${amountReceived.toLocaleString()}đ) < Tổng cần thanh toán (${finalAmount.toLocaleString()}đ)`)
+    return ApiResponse.error(
+      `Tiền nhận (${amountReceived.toLocaleString()}đ) < Tổng cần thanh toán (${finalAmount.toLocaleString()}đ)`,
+    )
   }
 
   // Cập nhật order → paid
   const { error: updateError } = await supabase
     .from('orders')
     .update({
-      status:          'paid',
-      payment_status:  'paid',
-      payment_method:  paymentMethod,
+      status: 'paid',
+      payment_status: 'paid',
+      payment_method: paymentMethod,
       discount_amount: discountAmount,
-      note:            note || null,
+      note: note || null,
     })
     .eq('id', orderIdInt)
 
   if (updateError) return ApiResponse.error('Không thể cập nhật thanh toán')
 
   // Bàn về available
-  await supabase
-    .from('tables')
-    .update({ status: 'available' })
-    .eq('id', order.table_id)
+  await supabase.from('tables').update({ status: 'available' }).eq('id', order.table_id)
 
   // Lấy order_items để in bill và trừ tồn kho
   const { data: items } = await supabase
@@ -92,19 +92,31 @@ export async function POST(
   console.log('[payment] inserting print_queue job...')
 
   await supabase.from('print_queue').insert({
-    order_id:     orderIdInt,
+    order_id: orderIdInt,
     printer_type: 'cashier',
-    content:      buildBillReceipt({
-      tableNumber, timeStr, items: items ?? [],
-      totalPrice: order.total_price, discountAmount,
-      finalAmount, paymentMethod, amountReceived, changeAmount,
+    content: buildBillReceipt({
+      tableNumber,
+      timeStr,
+      items: items ?? [],
+      totalPrice: order.total_price,
+      discountAmount,
+      finalAmount,
+      paymentMethod,
+      amountReceived,
+      changeAmount,
     }),
     content_json: {
-      type: 'bill', tableNumber, totalPrice: order.total_price,
-      discountAmount, finalAmount, paymentMethod, amountReceived, changeAmount,
+      type: 'bill',
+      tableNumber,
+      totalPrice: order.total_price,
+      discountAmount,
+      finalAmount,
+      paymentMethod,
+      amountReceived,
+      changeAmount,
     },
-    status:     'pending',
-    priority:   1,
+    status: 'pending',
+    priority: 1,
     created_by: user!.userId,
   })
 
@@ -162,16 +174,16 @@ async function deductIngredientStock(supabase: any, items: any[]) {
     // UPDATE từng nguyên liệu — cho phép âm
     await Promise.all(
       ingredients.map((ing: any) => {
-        const deduct  = deductMap.get(ing.id) ?? 0
-        const newQty  = ing.stock_quantity - deduct
+        const deduct = deductMap.get(ing.id) ?? 0
+        const newQty = ing.stock_quantity - deduct
         return supabase
           .from('ingredients')
           .update({
             stock_quantity: newQty,
-            updated_at:     new Date().toISOString(),
+            updated_at: new Date().toISOString(),
           })
           .eq('id', ing.id)
-      })
+      }),
     )
   } catch (err) {
     // Log lỗi nhưng không throw — không để trừ kho fail ảnh hưởng thanh toán
@@ -180,14 +192,20 @@ async function deductIngredientStock(supabase: any, items: any[]) {
 }
 
 function buildBillReceipt({
-  tableNumber, timeStr, items, totalPrice,
-  discountAmount, finalAmount, paymentMethod,
-  amountReceived, changeAmount
+  tableNumber,
+  timeStr,
+  items,
+  totalPrice,
+  discountAmount,
+  finalAmount,
+  paymentMethod,
+  amountReceived,
+  changeAmount,
 }: any): string {
   const METHOD: Record<string, string> = {
-    cash:     'Tien mat',
+    cash: 'Tien mat',
     transfer: 'Chuyen khoan',
-    card:     'The',
+    card: 'The',
   }
   return [
     '================================',
@@ -195,20 +213,21 @@ function buildBillReceipt({
     '================================',
     `Ban: ${tableNumber}        ${timeStr}`,
     '--------------------------------',
-    ...(items ?? []).map((i: any) =>
-      `${i.quantity}x ${i.products?.name ?? '?'}`
-        .padEnd(22) + `${i.subtotal.toLocaleString('vi-VN')}d`
+    ...(items ?? []).map(
+      (i: any) =>
+        `${i.quantity}x ${i.products?.name ?? '?'}`.padEnd(22) +
+        `${i.subtotal.toLocaleString('vi-VN')}d`,
     ),
     '--------------------------------',
-    `Tong:`.padEnd(22)        + `${totalPrice.toLocaleString('vi-VN')}d`,
+    `Tong:`.padEnd(22) + `${totalPrice.toLocaleString('vi-VN')}d`,
     discountAmount > 0
       ? `Giam gia:`.padEnd(22) + `-${discountAmount.toLocaleString('vi-VN')}d`
       : '',
-    `Thanh toan:`.padEnd(22)  + `${finalAmount.toLocaleString('vi-VN')}d`,
+    `Thanh toan:`.padEnd(22) + `${finalAmount.toLocaleString('vi-VN')}d`,
     '--------------------------------',
     `PT: ${METHOD[paymentMethod] ?? paymentMethod}`,
     paymentMethod === 'cash'
-      ? `Nhan:`.padEnd(22)    + `${amountReceived.toLocaleString('vi-VN')}d`
+      ? `Nhan:`.padEnd(22) + `${amountReceived.toLocaleString('vi-VN')}d`
       : '',
     paymentMethod === 'cash'
       ? `Tra lai:`.padEnd(22) + `${changeAmount.toLocaleString('vi-VN')}d`
@@ -218,5 +237,7 @@ function buildBillReceipt({
     '       Hen gap lai!',
     '================================',
     '',
-  ].filter(l => l !== '').join('\n')
+  ]
+    .filter((l) => l !== '')
+    .join('\n')
 }

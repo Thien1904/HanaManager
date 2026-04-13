@@ -42,9 +42,7 @@ export default function MenuManager() {
     refresh()
   }
 
-  if (error) return (
-    <div className="p-6 text-center text-red-500">{error}</div>
-  )
+  if (error) return <div className="p-6 text-center text-red-500">{error}</div>
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -64,7 +62,10 @@ export default function MenuManager() {
             Danh mục
           </button>
           <button
-            onClick={() => { setEditProduct(null); setShowModal(true) }}
+            onClick={() => {
+              setEditProduct(null)
+              setShowModal(true)
+            }}
             className="px-4 py-2 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
           >
             + Thêm món
@@ -144,7 +145,20 @@ export default function MenuManager() {
                 <p className="text-xs text-gray-400 truncate mt-0.5">
                   {product.categories?.name ?? '—'}
                 </p>
-                <p className="text-xs text-gray-400  mt-0.5" style={{ WebkitLineClamp: 2, display: '-webkit-box', WebkitBoxOrient: 'vertical' ,color:"#220ddf",overflow:"hidden",fontStyle:"bold",fontSize:"15px",textOverflow:"ellipsis",alignContent:"center" }}>
+                <p
+                  className="text-xs text-gray-400  mt-0.5"
+                  style={{
+                    WebkitLineClamp: 2,
+                    display: '-webkit-box',
+                    WebkitBoxOrient: 'vertical',
+                    color: '#220ddf',
+                    overflow: 'hidden',
+                    fontStyle: 'bold',
+                    fontSize: '15px',
+                    textOverflow: 'ellipsis',
+                    alignContent: 'center',
+                  }}
+                >
                   {product.description || 'Không có mô tả'}
                 </p>
 
@@ -161,7 +175,10 @@ export default function MenuManager() {
                     {product.is_available ? 'Có bán' : 'Hết'}
                   </button>
                   <button
-                    onClick={() => { setEditProduct(product); setShowModal(true) }}
+                    onClick={() => {
+                      setEditProduct(product)
+                      setShowModal(true)
+                    }}
                     className="px-2 py-1 text-xs bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition"
                   >
                     Sửa
@@ -185,7 +202,10 @@ export default function MenuManager() {
           product={editProduct}
           categories={categories}
           onClose={() => setShowModal(false)}
-          onSaved={() => { setShowModal(false); refresh() }}
+          onSaved={() => {
+            setShowModal(false)
+            refresh()
+          }}
         />
       )}
       {showCatManager && (

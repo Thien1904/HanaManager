@@ -9,32 +9,34 @@ import clsx from 'clsx'
 // Icon đơn giản dùng emoji — sau này có thể đổi sang lucide-react
 const NAV_ITEMS = {
   admin: [
-    { href: '/admin/reports',   label: 'Báo cáo',      icon: '📊' },
-    { href: '/admin/menu',      label: 'Thực đơn',     icon: '🍜' },
+    { href: '/admin/reports', label: 'Báo cáo', icon: '📊' },
+    { href: '/admin/menu', label: 'Thực đơn', icon: '🍜' },
     { href: '/admin/inventory', label: 'Kho nguyên liệu', icon: '📦' },
-    { href: '/admin/staff',     label: 'Nhân viên',    icon: '👥' },
-    { href: '/admin/schedule',  label: 'Lịch làm việc',icon: '📅' },
-    { href: '/admin/payroll',   label: 'Bảng lương',   icon: '💰' },
-    { href: '/chat',            label: 'AI Chat',      icon: '🤖' },
-    { href: '/waiter/tables',   label: 'Quản lý bàn',  icon: '🪑' },
-    { href: '/waiter/orders',   label: 'Đơn hàng',     icon: '📋' },   
+    { href: '/admin/staff', label: 'Nhân viên', icon: '👥' },
+    { href: '/admin/schedule', label: 'Lịch làm việc', icon: '📅' },
+    { href: '/admin/payroll', label: 'Bảng lương', icon: '💰' },
+    { href: '/chat', label: 'AI Chat', icon: '🤖' },
+    { href: '/waiter/tables', label: 'Quản lý bàn', icon: '🪑' },
+    { href: '/waiter/orders', label: 'Đơn hàng', icon: '📋' },
   ],
   waiter: [
-    { href: '/waiter/tables',   label: 'Quản lý bàn',  icon: '🪑' },
-    { href: '/waiter/orders',   label: 'Đơn hàng',     icon: '📋' },
-    { href: '/waiter/reports',  label: 'Báo cáo',       icon: '📊' },
-    { href: '/chat',            label: 'AI Chat',      icon: '🤖' },
+    { href: '/waiter/tables', label: 'Quản lý bàn', icon: '🪑' },
+    { href: '/waiter/orders', label: 'Đơn hàng', icon: '📋' },
+    { href: '/waiter/reports', label: 'Báo cáo', icon: '📊' },
+    { href: '/chat', label: 'AI Chat', icon: '🤖' },
+    { href: '/admin/menu', label: 'Thực đơn', icon: '🍜' },
   ],
   chef: [
-    { href: '/chef/kitchen',    label: 'Màn hình bếp', icon: '👨‍🍳' },
-    { href: '/chat',            label: 'AI Chat',      icon: '🤖' },
+    { href: '/chef/kitchen', label: 'Màn hình bếp', icon: '👨‍🍳' },
+    { href: '/chat', label: 'AI Chat', icon: '🤖' },
+    { href: '/admin/menu', label: 'Thực đơn', icon: '🍜' },
   ],
 }
 
 const ROLE_LABEL = {
-  admin:  'Quản lý',
+  admin: 'Quản lý',
   waiter: 'Phục vụ',
-  chef:   'Bếp',
+  chef: 'Bếp',
 }
 
 interface SidebarProps {
@@ -43,7 +45,7 @@ interface SidebarProps {
 
 export default function Sidebar({ session }: SidebarProps) {
   const pathname = usePathname()
-  const router   = useRouter()
+  const router = useRouter()
   const navItems = NAV_ITEMS[session.role] ?? []
 
   async function handleLogout() {
@@ -54,7 +56,6 @@ export default function Sidebar({ session }: SidebarProps) {
 
   return (
     <aside className="w-56 bg-white border-r border-gray-100 flex flex-col h-full shadow-sm">
-
       {/* Logo */}
       <div className="px-5 py-5 border-b border-gray-100">
         <div className="flex items-center gap-2">
@@ -78,7 +79,7 @@ export default function Sidebar({ session }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
-        {navItems.map(item => (
+        {navItems.map((item) => (
           <Link
             key={item.href}
             href={item.href}
@@ -86,7 +87,7 @@ export default function Sidebar({ session }: SidebarProps) {
               'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors',
               pathname.startsWith(item.href)
                 ? 'bg-brand-50 text-brand-700 font-semibold'
-                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
             )}
           >
             <span className="text-base">{item.icon}</span>
@@ -106,7 +107,6 @@ export default function Sidebar({ session }: SidebarProps) {
           <span>Đăng xuất</span>
         </button>
       </div>
-
     </aside>
   )
 }

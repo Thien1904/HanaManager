@@ -4,7 +4,8 @@
 
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { ApiResponse, requireRole, assert } from '@/utils/api'
+import { requireRole, assert } from '@/utils/api'
+import { ApiResponse } from '@/utils/api-response' // Chuẩn hóa response API
 
 /**
  * GET /api/printer-settings — Lấy danh sách máy in đã cài đặt
@@ -40,17 +41,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { name, printer_type, connect_type, ip_address, port, usb_name, paper_width } = body
 
-    assert(name?.trim(),     'Tên máy in không được trống')
-    assert(printer_type,     'Chọn loại phiếu in')
-    assert(connect_type,     'Chọn loại kết nối')
+    assert(name?.trim(), 'Tên máy in không được trống')
+    assert(printer_type, 'Chọn loại phiếu in')
+    assert(connect_type, 'Chọn loại kết nối')
     assert(
       ['kitchen', 'bar', 'tem_ly', 'cashier'].includes(printer_type),
-      'Loại phiếu không hợp lệ'
+      'Loại phiếu không hợp lệ',
     )
-    assert(
-      ['ip', 'usb'].includes(connect_type),
-      'Loại kết nối không hợp lệ'
-    )
+    assert(['ip', 'usb'].includes(connect_type), 'Loại kết nối không hợp lệ')
     if (connect_type === 'ip') {
       assert(ip_address?.trim(), 'Nhập địa chỉ IP máy in')
     }
@@ -62,14 +60,14 @@ export async function POST(request: NextRequest) {
     const { data, error: dbError } = await supabase
       .from('printer_settings')
       .insert({
-        name:         name.trim(),
+        name: name.trim(),
         printer_type,
         connect_type,
-        ip_address:   ip_address?.trim() ?? null,
-        port:         port ?? 9100,
-        usb_name:     usb_name?.trim() ?? null,
-        paper_width:  paper_width ?? 80,
-        is_active:    true,
+        ip_address: ip_address?.trim() ?? null,
+        port: port ?? 9100,
+        usb_name: usb_name?.trim() ?? null,
+        paper_width: paper_width ?? 80,
+        is_active: true,
       })
       .select()
       .single()
@@ -95,9 +93,18 @@ export async function PUT(request: NextRequest) {
 
     assert(id, 'Thiếu id')
 
-    const allowed = ['name', 'printer_type', 'connect_type', 'ip_address', 'port', 'usb_name', 'paper_width', 'is_active']
+    const allowed = [
+      'name',
+      'printer_type',
+      'connect_type',
+      'ip_address',
+      'port',
+      'usb_name',
+      'paper_width',
+      'is_active',
+    ]
     const safeUpdates = Object.fromEntries(
-      Object.entries(updates).filter(([k]) => allowed.includes(k))
+      Object.entries(updates).filter(([k]) => allowed.includes(k)),
     )
 
     const supabase = createAdminClient()
@@ -128,10 +135,7 @@ export async function DELETE(request: NextRequest) {
     assert(id, 'Thiếu id')
 
     const supabase = createAdminClient()
-    const { error: dbError } = await supabase
-      .from('printer_settings')
-      .delete()
-      .eq('id', Number(id))
+    const { error: dbError } = await supabase.from('printer_settings').delete().eq('id', Number(id))
 
     if (dbError) throw dbError
     return ApiResponse.success({ id: Number(id) })

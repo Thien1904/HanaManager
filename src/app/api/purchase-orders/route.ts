@@ -4,8 +4,8 @@
 
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { ApiResponse, requireRole, assert } from '@/utils/api'
-
+import { requireRole, assert } from '@/utils/api'
+import { ApiResponse } from '@/utils/api-response' // Chuẩn hóa response API
 /**
  * GET /api/purchase-orders — Lấy danh sách đơn nhập hàng
  * Query: ?status=pending|received|cancelled (optional)
@@ -21,7 +21,8 @@ export async function GET(request: NextRequest) {
     const supabase = createAdminClient()
     let query = supabase
       .from('purchase_orders')
-      .select(`
+      .select(
+        `
         id, total_amount, status, created_at,
         suppliers ( id, name, phone ),
         users ( id, full_name ),
@@ -29,7 +30,8 @@ export async function GET(request: NextRequest) {
           id, quantity, unit_price,
           ingredients ( id, name, unit )
         )
-      `)
+      `,
+      )
       .order('created_at', { ascending: false })
 
     if (status) query = query.eq('status', status)
@@ -53,20 +55,18 @@ export async function POST(request: NextRequest) {
   try {
     const { supplier_id, items } = await request.json()
 
-    assert(supplier_id,        'Chọn nhà cung cấp')
-    assert(items?.length > 0,  'Thêm ít nhất 1 nguyên liệu')
+    assert(supplier_id, 'Chọn nhà cung cấp')
+    assert(items?.length > 0, 'Thêm ít nhất 1 nguyên liệu')
 
     // Validate từng item
     for (const item of items) {
-      assert(item.ingredient_id,           'Thiếu ingredient_id')
-      assert(item.quantity > 0,            'Số lượng phải lớn hơn 0')
-      assert(item.unit_price >= 0,         'Đơn giá không được âm')
+      assert(item.ingredient_id, 'Thiếu ingredient_id')
+      assert(item.quantity > 0, 'Số lượng phải lớn hơn 0')
+      assert(item.unit_price >= 0, 'Đơn giá không được âm')
     }
 
     // Tính tổng tiền
-    const totalAmount = items.reduce(
-      (sum: number, i: any) => sum + i.quantity * i.unit_price, 0
-    )
+    const totalAmount = items.reduce((sum: number, i: any) => sum + i.quantity * i.unit_price, 0)
 
     const supabase = createAdminClient()
 
@@ -74,10 +74,10 @@ export async function POST(request: NextRequest) {
     const { data: order, error: orderError } = await supabase
       .from('purchase_orders')
       .insert({
-        supplier_id:  Number(supplier_id),
-        user_id:      user!.userId,
+        supplier_id: Number(supplier_id),
+        user_id: user!.userId,
         total_amount: totalAmount,
-        status:       'pending',
+        status: 'pending',
       })
       .select('id')
       .single()
@@ -85,16 +85,14 @@ export async function POST(request: NextRequest) {
     if (orderError) throw orderError
 
     // Tạo các dòng chi tiết
-    const { error: itemsError } = await supabase
-      .from('purchase_order_items')
-      .insert(
-        items.map((i: any) => ({
-          purchase_order_id: order.id,
-          ingredient_id:     Number(i.ingredient_id),
-          quantity:          i.quantity,
-          unit_price:        i.unit_price,
-        }))
-      )
+    const { error: itemsError } = await supabase.from('purchase_order_items').insert(
+      items.map((i: any) => ({
+        purchase_order_id: order.id,
+        ingredient_id: Number(i.ingredient_id),
+        quantity: i.quantity,
+        unit_price: i.unit_price,
+      })),
+    )
 
     if (itemsError) throw itemsError
 
@@ -116,11 +114,11 @@ export async function PUT(request: NextRequest) {
   try {
     const { id, status } = await request.json()
 
-    assert(id,     'Thiếu id')
+    assert(id, 'Thiếu id')
     assert(status, 'Thiếu status')
     assert(
       ['completed', 'cancelled'].includes(status),
-      'Status không hợp lệ — chỉ chấp nhận completed hoặc cancelled'
+      'Status không hợp lệ — chỉ chấp nhận completed hoặc cancelled',
     )
 
     const supabase = createAdminClient()
@@ -203,15 +201,15 @@ async function addIngredientStock(supabase: any, items: any[]) {
 
   await Promise.all(
     ingredients.map((ing: any) => {
-      const item   = items.find((i: any) => i.ingredient_id === ing.id)
+      const item = items.find((i: any) => i.ingredient_id === ing.id)
       const addQty = item?.quantity ?? 0
       return supabase
         .from('ingredients')
         .update({
           stock_quantity: ing.stock_quantity + addQty,
-          updated_at:     new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         })
         .eq('id', ing.id)
-    })
+    }),
   )
 }

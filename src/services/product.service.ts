@@ -1,7 +1,7 @@
 // services/product.service.ts
-import { Product } from '@/types/database'
-
-// Thay project-id bằng id project của mày
+//import { Product } from '@/types/database'
+import { Product } from '@/types/product'
+import { error } from 'console'
 const STORAGE_URL = 'https://[your-project-id].supabase.co/storage/v1/object/public/products/'
 
 export class ProductService {
@@ -14,31 +14,44 @@ export class ProductService {
     return `${STORAGE_URL}${path}`
   }
 
-  async getProducts(options: { categoryId?: number | null; includeUnavailable?: boolean }) {
+  async getProducts(options: {
+    categoryId?: number | string | null
+    includeUnavailable?: boolean
+  }) {
     let query = this.supabase
       .from('products')
       .select(
         `
-        *,
-        categories ( id, name ),
-        product_variants ( id, name, price, is_default, is_active, sort_order )
-      `,
+      id, name, description, price, image_url, is_available,
+      category_id, print_kitchen, print_bar, print_label,
+      categories ( id, name ),
+      product_variants ( id, name, price, is_default, is_active, sort_order )
+    `,
       )
       .eq('is_deleted', false)
       .order('name')
 
-    if (!options.includeUnavailable) query = query.eq('is_available', true)
-    if (options.categoryId) query = query.eq('category_id', options.categoryId)
+    // Filter món
+    if (!options.includeUnavailable) {
+      query = query.eq('is_available', true)
+    }
+
+    // Ép kiểu number nếu categoryId tồn tại
+    if (options.categoryId) {
+      query = query.eq('category_id', Number(options.categoryId))
+    }
 
     const { data, error } = await query
     if (error) throw error
 
     return (data ?? []).map((p: any) => ({
       ...p,
-      image_url: this.formatImageUrl(p.image_url), // Tự động fix link ảnh ở đây
+      // Xử lý link ảnh
+      image_url: this.formatImageUrl(p.image_url),
+      // Xử lý variants
       variants: (p.product_variants ?? [])
         .filter((v: any) => v.is_active)
-        .sort((a: any, b: any) => a.sort_order - b.sort_order),
+        .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0)),
     }))
   }
 
@@ -96,5 +109,22 @@ export class ProductService {
       .eq('id', id)
 
     if (error) throw error
+  }
+  // Load các produc đã xóa để quản lý (nếu cần)
+  async getDeletedProducts() {
+    const { data, error } = await this.supabase
+      .from('products')
+      .select(
+        `
+        id, name, price, description, category_id, image_url
+      `,
+      )
+      .eq('is_deleted', true)
+      .order('name')
+    if (error) throw error
+    return (data ?? []).map((p: any) => ({
+      ...p,
+      image_url: this.formatImageUrl(p.image_url),
+    }))
   }
 }

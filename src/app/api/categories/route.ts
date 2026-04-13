@@ -1,7 +1,8 @@
 // src/app/api/categories/route.ts
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { ApiResponse, requireRole } from '@/utils/api'
+import { requireRole } from '@/utils/api'
+import { ApiResponse } from '@/utils/api-response'
 
 // GET /api/categories — Lấy danh sách danh mục
 export async function GET(request: NextRequest) {
@@ -94,10 +95,7 @@ export async function DELETE(request: NextRequest) {
   if (count && count > 0)
     return ApiResponse.error(`Danh mục còn ${count} món. Hãy chuyển hoặc xóa món trước.`)
 
-  const { error: dbError } = await supabase
-    .from('categories')
-    .delete()
-    .eq('id', Number(body.id))
+  const { error: dbError } = await supabase.from('categories').delete().eq('id', Number(body.id))
 
   if (dbError) return ApiResponse.error('Không thể xóa danh mục', 500)
 

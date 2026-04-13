@@ -1,8 +1,9 @@
 // src/app/api/orders/[orderId]/items/route.ts
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { ApiResponse, requireRole } from '@/utils/api'
-import { requirePermission } from '@/lib/requirePermission'
+import { requireRole } from '@/utils/api'
+import { ApiResponse } from '@/utils/api-response' // Chuẩn hóa response API
+import { requirePermission } from '@/utils/api-auth'
 const BAR_CATEGORIES = ['Đồ uống', 'Đồ uống có cồn']
 
 // POST /api/orders/[orderId]/items — Thêm món vào order đang có
@@ -103,7 +104,6 @@ export async function POST(
   // Dùng Promise.all để chạy song song việc lấy giá/tên cho tất cả món trong giỏ
   const newItems = await Promise.all(
     items.map(async (item: any) => {
-      // Gọi hàm Bước 1 mày vừa viết
       const info = await getItemInfo(item.productId, item.variantId)
 
       return {

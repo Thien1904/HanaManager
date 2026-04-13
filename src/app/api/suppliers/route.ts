@@ -4,7 +4,8 @@
 
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { ApiResponse, requireRole, assert } from '@/utils/api'
+import { requireRole, assert } from '@/utils/api'
+import { ApiResponse } from '@/utils/api-response' // Chuẩn hóa response API
 
 /**
  * GET /api/suppliers — Lấy danh sách nhà cung cấp
@@ -44,10 +45,10 @@ export async function POST(request: NextRequest) {
     const { data, error: dbError } = await supabase
       .from('suppliers')
       .insert({
-        name:         name.trim(),
+        name: name.trim(),
         contact_name: contact_name?.trim() ?? null,
-        phone:        phone?.trim() ?? null,
-        address:      address?.trim() ?? null,
+        phone: phone?.trim() ?? null,
+        address: address?.trim() ?? null,
       })
       .select('id, name, contact_name, phone, address, created_at')
       .single()
@@ -77,10 +78,10 @@ export async function PUT(request: NextRequest) {
     const { data, error: dbError } = await supabase
       .from('suppliers')
       .update({
-        name:         name.trim(),
+        name: name.trim(),
         contact_name: contact_name?.trim() ?? null,
-        phone:        phone?.trim() ?? null,
-        address:      address?.trim() ?? null,
+        phone: phone?.trim() ?? null,
+        address: address?.trim() ?? null,
       })
       .eq('id', Number(id))
       .select('id, name, contact_name, phone, address, created_at')
@@ -115,10 +116,7 @@ export async function DELETE(request: NextRequest) {
 
     assert(!count || count === 0, `Nhà cung cấp còn ${count} đơn nhập hàng, không thể xóa`)
 
-    const { error: dbError } = await supabase
-      .from('suppliers')
-      .delete()
-      .eq('id', Number(id))
+    const { error: dbError } = await supabase.from('suppliers').delete().eq('id', Number(id))
 
     if (dbError) throw dbError
     return ApiResponse.success({ id: Number(id) })

@@ -5,7 +5,8 @@
 
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server' // Supabase client bypass RLS
-import { ApiResponse, requireRole,assert } from '@/utils/api'   // Helper response + kiểm tra quyền
+import { requireRole, assert } from '@/utils/api' // Helper response + kiểm tra quyền
+import { ApiResponse } from '@/utils/api-response' // Chuẩn hóa response API
 
 /**
  * GET /api/recipes?product_id=1
@@ -25,16 +26,17 @@ export async function GET(request: NextRequest) {
     const supabase = createAdminClient()
     const { data, error: dbError } = await supabase
       .from('recipes')
-      .select(`
+      .select(
+        `
         id, quantity_needed,
         ingredients ( id, name, unit, stock_quantity )
-      `)
+      `,
+      )
       .eq('product_id', Number(productId))
       .order('id')
 
     if (dbError) throw dbError
     return ApiResponse.success(data)
-
   } catch (err) {
     return ApiResponse.handle(err)
   }
@@ -53,9 +55,9 @@ export async function POST(request: NextRequest) {
   try {
     const { product_id, ingredient_id, quantity_needed } = await request.json()
 
-    assert(product_id,                    'Thiếu product_id')
-    assert(ingredient_id,                 'Thiếu ingredient_id')
-    assert(quantity_needed > 0,           'Số lượng phải lớn hơn 0')
+    assert(product_id, 'Thiếu product_id')
+    assert(ingredient_id, 'Thiếu ingredient_id')
+    assert(quantity_needed > 0, 'Số lượng phải lớn hơn 0')
 
     const supabase = createAdminClient()
 
@@ -63,7 +65,7 @@ export async function POST(request: NextRequest) {
     const { count } = await supabase
       .from('recipes')
       .select('*', { count: 'exact', head: true })
-      .eq('product_id',    Number(product_id))
+      .eq('product_id', Number(product_id))
       .eq('ingredient_id', Number(ingredient_id))
 
     assert(!count || count === 0, 'Nguyên liệu này đã có trong công thức')
@@ -71,19 +73,20 @@ export async function POST(request: NextRequest) {
     const { data, error: dbError } = await supabase
       .from('recipes')
       .insert({
-        product_id:       Number(product_id),
-        ingredient_id:    Number(ingredient_id),
+        product_id: Number(product_id),
+        ingredient_id: Number(ingredient_id),
         quantity_needed,
       })
-      .select(`
+      .select(
+        `
         id, quantity_needed,
         ingredients ( id, name, unit, stock_quantity )
-      `)
+      `,
+      )
       .single()
 
     if (dbError) throw dbError
     return ApiResponse.success(data, 201)
-
   } catch (err) {
     return ApiResponse.handle(err)
   }
@@ -102,7 +105,7 @@ export async function PUT(request: NextRequest) {
   try {
     const { id, quantity_needed } = await request.json()
 
-    assert(id,                  'Thiếu id')
+    assert(id, 'Thiếu id')
     assert(quantity_needed > 0, 'Số lượng phải lớn hơn 0')
 
     const supabase = createAdminClient()
@@ -110,15 +113,16 @@ export async function PUT(request: NextRequest) {
       .from('recipes')
       .update({ quantity_needed })
       .eq('id', Number(id))
-      .select(`
+      .select(
+        `
         id, quantity_needed,
         ingredients ( id, name, unit, stock_quantity )
-      `)
+      `,
+      )
       .single()
 
     if (dbError) throw dbError
     return ApiResponse.success(data)
-
   } catch (err) {
     return ApiResponse.handle(err)
   }
@@ -140,14 +144,10 @@ export async function DELETE(request: NextRequest) {
     assert(id, 'Thiếu id')
 
     const supabase = createAdminClient()
-    const { error: dbError } = await supabase
-      .from('recipes')
-      .delete()
-      .eq('id', Number(id))
+    const { error: dbError } = await supabase.from('recipes').delete().eq('id', Number(id))
 
     if (dbError) throw dbError
     return ApiResponse.success({ id: Number(id) })
-
   } catch (err) {
     return ApiResponse.handle(err)
   }

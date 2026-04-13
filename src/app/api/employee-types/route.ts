@@ -1,7 +1,8 @@
 // src/app/api/employee-types/route.ts
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { ApiResponse, requireRole } from '@/utils/api'
+import { requireRole } from '@/utils/api'
+import { ApiResponse } from '@/utils/api-response'
 
 export async function GET(request: NextRequest) {
   const { error } = requireRole(request, ['admin'])

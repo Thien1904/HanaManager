@@ -9,10 +9,10 @@ export interface Category {
 }
 
 export function useAdminProducts() {
-  const [products, setProducts]     = useState<Product[]>([])
+  const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
-  const [loading, setLoading]       = useState(true)
-  const [error, setError]           = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -22,10 +22,7 @@ export function useAdminProducts() {
         window.fetch('/api/products?all=true'),
         window.fetch('/api/categories'),
       ])
-      const [prodJson, catJson] = await Promise.all([
-        prodRes.json(),
-        catRes.json(),
-      ])
+      const [prodJson, catJson] = await Promise.all([prodRes.json(), catRes.json()])
       if (!prodRes.ok) throw new Error(prodJson.error ?? 'Không thể tải món ăn')
       if (!catRes.ok) throw new Error(catJson.error ?? 'Không thể tải danh mục')
       setProducts(prodJson.data)
@@ -37,7 +34,9 @@ export function useAdminProducts() {
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    load()
+  }, [load])
 
   return { products, categories, loading, error, refresh: load }
 }

@@ -4,7 +4,8 @@
 
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { ApiResponse, requireRole } from '@/utils/api'
+import { requireRole } from '@/utils/api'
+import { ApiResponse } from '@/utils/api-response' // Chuẩn hóa response API
 
 /**
  * GET /api/print-queue?printer_type=kitchen&limit=10
@@ -18,13 +19,15 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const printer_type = searchParams.get('printer_type')
-    const limit        = Number(searchParams.get('limit') ?? 10)
+    const limit = Number(searchParams.get('limit') ?? 10)
 
     const supabase = createAdminClient()
 
     let query = supabase
       .from('print_queue')
-      .select('id, printer_type, printer_id, content, content_json, priority, retry_count, max_retries, created_at')
+      .select(
+        'id, printer_type, printer_id, content, content_json, priority, retry_count, max_retries, created_at',
+      )
       .eq('status', 'pending')
       .order('priority', { ascending: false })
       .order('created_at', { ascending: true })
@@ -38,7 +41,6 @@ export async function GET(request: NextRequest) {
     // Lọc job chưa vượt max_retries
     const jobs = (data ?? []).filter((j) => j.retry_count < j.max_retries)
     return ApiResponse.success(jobs)
-
   } catch (err) {
     return ApiResponse.handle(err)
   }
@@ -58,8 +60,7 @@ export async function PATCH(request: NextRequest) {
     const { id, status, error_message } = body
 
     if (!id) return ApiResponse.error('Thiếu id')
-    if (!['printed', 'failed'].includes(status))
-      return ApiResponse.error('Status không hợp lệ')
+    if (!['printed', 'failed'].includes(status)) return ApiResponse.error('Status không hợp lệ')
 
     const supabase = createAdminClient()
 
@@ -82,9 +83,9 @@ export async function PATCH(request: NextRequest) {
         await supabase
           .from('print_queue')
           .update({
-            retry_count:   newRetry,
+            retry_count: newRetry,
             error_message: error_message ?? 'Unknown error',
-            status:        newRetry >= job.max_retries ? 'failed' : 'pending',
+            status: newRetry >= job.max_retries ? 'failed' : 'pending',
           })
           .eq('id', Number(id))
       }
@@ -118,10 +119,7 @@ export async function DELETE(request: NextRequest) {
         .in('status', ['printed', 'failed'])
         .lt('created_at', cutoff.toISOString())
     } else {
-      await supabase
-        .from('print_queue')
-        .delete()
-        .eq('id', Number(body.id))
+      await supabase.from('print_queue').delete().eq('id', Number(body.id))
     }
 
     return ApiResponse.success({ deleted: true })

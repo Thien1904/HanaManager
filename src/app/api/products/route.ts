@@ -5,110 +5,57 @@
 
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { ApiResponse, requireRole, assert } from '@/utils/api'
+import { requireRole, assert } from '@/utils/api'
+import { requireAnyPermission, requirePermission } from '@/utils/api-auth'
+import { getUserFromRequest } from '@/utils/api-auth'
+import { ApiResponse } from '@/utils/api-response'
+import { ProductService } from '@/services/product.service'
 
 /**
  * GET /api/products — Lấy danh sách món ăn kèm variants
  * ?all=true → lấy cả món ẩn (admin)
  * ?category_id=1 → filter theo danh mục
  */
+
 export async function GET(request: NextRequest) {
-  const { error } = requireRole(request, ['admin', 'waiter', 'chef'])
+  //const { error } = requireRole(request, ['admin', 'waiter', 'chef'])
+  const { error } = requirePermission(request, 'menu.read')
+  const user = getUserFromRequest(request)
+
+  //console.log('User Role:', user?.role)
   if (error) return error
 
   try {
     const { searchParams } = new URL(request.url)
     const categoryId = searchParams.get('category_id')
     const includeUnavailable = searchParams.get('all') === 'true'
-
     const supabase = createAdminClient()
-
-    let query = supabase
-      .from('products')
-      .select(
-        `
-        id, name, description, price, image_url, is_available,
-        category_id, print_kitchen, print_bar, print_label,
-        categories ( id, name ),
-        product_variants (
-          id, name, price, is_default, is_active, sort_order
-        )
-      `,
-      )
-      .eq('is_deleted', false)
-      .order('name')
-
-    if (!includeUnavailable) query = query.eq('is_available', true)
-    if (categoryId) query = query.eq('category_id', Number(categoryId))
-
-    const { data, error: dbError } = await query
-    if (dbError) throw dbError
-
-    // Chỉ giữ variant đang active, sort theo sort_order
-    const products = (data ?? []).map((p) => ({
-      ...p,
-      variants: (p.product_variants ?? [])
-        .filter((v: any) => v.is_active)
-        .sort((a: any, b: any) => a.sort_order - b.sort_order),
-    }))
-
+    const productService = new ProductService(supabase)
+    const products = await productService.getProducts({ categoryId, includeUnavailable })
     return ApiResponse.success(products)
   } catch (err) {
     return ApiResponse.handle(err)
   }
 }
 
+// Helper để format link ảnh từ storage Nếu đã là link tuyệt đối thì giữ nguyên, nếu là path thì thêm prefix STORAGE_URL
+const STORAGE_URL =
+  process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, '') + '/storage/v1/object/public/products/'
+
 /**
  * POST /api/products — Thêm món mới
  */
 export async function POST(request: NextRequest) {
-  const { error } = requireRole(request, ['admin'])
+  const { error } = requirePermission(request, 'menu.create')
+
   if (error) return error
 
   try {
     const body = await request.json()
-    const {
-      name,
-      category_id,
-      price,
-      description,
-      image_url,
-      is_available,
-      print_kitchen,
-      print_bar,
-      print_label,
-    } = body
-
-    assert(name?.trim(), 'Tên món không được trống')
-    assert(category_id, 'Chọn danh mục')
-    assert(price >= 0, 'Giá không hợp lệ')
-
     const supabase = createAdminClient()
-    const { data, error: dbError } = await supabase
-      .from('products')
-      .insert({
-        name: name.trim(),
-        category_id: Number(category_id),
-        price,
-        description: description?.trim() ?? null,
-        image_url: image_url ?? null,
-        is_available: is_available ?? true,
-        print_kitchen: print_kitchen ?? true,
-        print_bar: print_bar ?? false,
-        print_label: print_label ?? false,
-      })
-      .select(
-        `
-        id, name, description, price, image_url, is_available,
-        category_id, print_kitchen, print_bar, print_label,
-        categories ( id, name ),
-        product_variants ( id, name, price, is_default, is_active, sort_order )
-      `,
-      )
-      .single()
-
-    if (dbError) throw dbError
-    return ApiResponse.success({ ...data, variants: [] }, 201)
+    const productService = new ProductService(supabase)
+    const newProduct = await productService.createProduct(body)
+    return ApiResponse.success(newProduct)
   } catch (err) {
     return ApiResponse.handle(err)
   }
@@ -118,58 +65,17 @@ export async function POST(request: NextRequest) {
  * PUT /api/products — Cập nhật món
  */
 export async function PUT(request: NextRequest) {
-  const { error } = requireRole(request, ['admin'])
+  const { user, error } = requireAnyPermission(request, ['menu.update', 'menu.edit'])
   if (error) return error
 
   try {
     const body = await request.json()
-    const { id, ...updates } = body
-
-    assert(id, 'Thiếu id')
-
-    const allowed = [
-      'name',
-      'category_id',
-      'price',
-      'description',
-      'image_url',
-      'is_available',
-      'print_kitchen',
-      'print_bar',
-      'print_label',
-    ]
-    const safeUpdates = Object.fromEntries(
-      Object.entries(updates).filter(([k]) => allowed.includes(k)),
-    )
-    if (safeUpdates.name) safeUpdates.name = (safeUpdates.name as string).trim()
-    if (safeUpdates.category_id) safeUpdates.category_id = Number(safeUpdates.category_id)
-
+    const { id } = body
+    if (!id) return ApiResponse.error('Thiếu ID sản phẩm', 400)
     const supabase = createAdminClient()
-    const { data, error: dbError } = await supabase
-      .from('products')
-      .update(safeUpdates)
-      .eq('id', Number(id))
-      .eq('is_deleted', false)
-      .select(
-        `
-        id, name, description, price, image_url, is_available,
-        category_id, print_kitchen, print_bar, print_label,
-        categories ( id, name ),
-        product_variants ( id, name, price, is_default, is_active, sort_order )
-      `,
-      )
-      .single()
-
-    if (dbError) throw dbError
-
-    const result = {
-      ...data,
-      variants: (data.product_variants ?? [])
-        .filter((v: any) => v.is_active)
-        .sort((a: any, b: any) => a.sort_order - b.sort_order),
-    }
-
-    return ApiResponse.success(result)
+    const productService = new ProductService(supabase)
+    const updatedProduct = await productService.updateProduct(Number(id), body)
+    return ApiResponse.success(updatedProduct)
   } catch (err) {
     return ApiResponse.handle(err)
   }
@@ -178,6 +84,7 @@ export async function PUT(request: NextRequest) {
 /**
  * DELETE /api/products — Soft delete món
  */
+/**
 export async function DELETE(request: NextRequest) {
   const { error } = requireRole(request, ['admin'])
   if (error) return error
@@ -195,6 +102,7 @@ export async function DELETE(request: NextRequest) {
       .single()
 
     if (product?.image_url) {
+      //path saved image in Supabase storage, stored as "products/filename.jpg"
       const path = product.image_url.split('/storage/v1/object/public/products/')[1]
       if (path) await supabase.storage.from('products').remove([path])
     }
@@ -209,4 +117,27 @@ export async function DELETE(request: NextRequest) {
   } catch (err) {
     return ApiResponse.handle(err)
   }
+}
+ */
+export async function DELETE(request: NextRequest) {
+  const { error } = requirePermission(request, 'menu.delete')
+  if (error) return error
+
+  try {
+    const { id } = await request.json()
+    assert(id, 'Thiếu id')
+    const supabase = createAdminClient()
+    const productService = new ProductService(supabase)
+    await productService.deleteProduct(Number(id))
+    return ApiResponse.success({ id: Number(id) })
+  } catch (err) {
+    return ApiResponse.handle(err)
+  }
+}
+// Hàm load product đã xóa (is_deleted = true) để quản lý nếu cần
+export async function getDeletedProducts() {
+  const supabase = createAdminClient()
+  const productService = new ProductService(supabase)
+  const deletedProducts = await productService.getDeletedProducts()
+  return ApiResponse.success(deletedProducts)
 }

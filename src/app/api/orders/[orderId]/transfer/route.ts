@@ -1,11 +1,12 @@
 // src/app/api/orders/[orderId]/transfer/route.ts
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { ApiResponse, requireRole } from '@/utils/api'
+import { requireRole } from '@/utils/api'
+import { ApiResponse } from '@/utils/api-response' // Chuẩn hóa response API
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ orderId: string }> }
+  { params }: { params: Promise<{ orderId: string }> },
 ) {
   const { error } = requireRole(request, ['admin', 'waiter'])
   if (error) return error
@@ -18,14 +19,21 @@ export async function POST(
 
   // Lấy order
   const { data: order } = await supabase
-    .from('orders').select('id, table_id').eq('id', parseInt(orderId)).single()
+    .from('orders')
+    .select('id, table_id')
+    .eq('id', parseInt(orderId))
+    .single()
   if (!order) return ApiResponse.notFound('Đơn hàng')
 
   // Kiểm tra bàn đích còn trống
   const { data: toTable } = await supabase
-    .from('tables').select('id, status, table_number').eq('id', toTableId).single()
+    .from('tables')
+    .select('id, status, table_number')
+    .eq('id', toTableId)
+    .single()
   if (!toTable) return ApiResponse.notFound('Bàn đích')
-  if (toTable.status !== 'available') return ApiResponse.error(`Bàn ${toTable.table_number} đang có khách`)
+  if (toTable.status !== 'available')
+    return ApiResponse.error(`Bàn ${toTable.table_number} đang có khách`)
 
   // Chuyển order sang bàn mới
   await supabase.from('orders').update({ table_id: toTableId }).eq('id', order.id)

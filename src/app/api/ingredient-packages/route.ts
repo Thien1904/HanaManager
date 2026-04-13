@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { ApiResponse, requireRole, assert } from '@/utils/api'
+import { requireRole, assert } from '@/utils/api'
+import { ApiResponse } from '@/utils/api-response'
 
 /**
  * GET /api/ingredient-packages
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
       .insert({
         ingredient_id: Number(ingredient_id),
         package_name: package_name.trim(),
-        conversion_factor: Number(conversion_factor)
+        conversion_factor: Number(conversion_factor),
       })
       .select()
       .single()
@@ -81,7 +82,7 @@ export async function PUT(request: NextRequest) {
       .from('ingredient_packages')
       .update({
         package_name: package_name?.trim(),
-        conversion_factor: Number(conversion_factor)
+        conversion_factor: Number(conversion_factor),
       })
       .eq('id', Number(id))
       .select()

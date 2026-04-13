@@ -35,10 +35,12 @@ const NAV_ITEMS: Record<string, NavItem[]> = {
     { href: '/waiter/tables', label: 'Quản lý bàn', icon: '🪑' },
     { href: '/waiter/orders', label: 'Đơn hàng', icon: '📋' },
     { href: '/chat', label: 'AI Chat', icon: '🤖' },
+    { href: '/admin/menu', label: 'Thực đơn', icon: '🍜' },
   ],
   chef: [
     { href: '/chef/kitchen', label: 'Màn hình bếp', icon: '👨‍🍳' },
     { href: '/chat', label: 'AI Chat', icon: '🤖' },
+    { href: '/admin/menu', label: 'Thực đơn', icon: '🍜' },
   ],
 }
 

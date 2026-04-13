@@ -1,5 +1,5 @@
 // src/app/layout.tsx
-console.log('Check Key:', process.env.NEXT_PUBLIC_SUPABASE_URL)
+
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import { Toaster } from 'react-hot-toast'

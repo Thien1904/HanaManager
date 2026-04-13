@@ -1,31 +1,32 @@
 // src/app/api/reports/summary/route.ts
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { ApiResponse, requireRole } from '@/utils/api'
+import { requireRole } from '@/utils/api'
+import { ApiResponse } from '@/utils/api-response' // Chuẩn hóa response API
 
 export async function GET(request: NextRequest) {
   const { error } = requireRole(request, ['admin'])
   if (error) return error
 
   const supabase = createAdminClient()
-// 1. Lấy ngày hiện tại dưới dạng chuỗi YYYY-MM-DD theo giờ VN
-const now = new Date();
-const vnDateStr = new Intl.DateTimeFormat('sv-SE', {
-  timeZone: 'Asia/Ho_Chi_Minh',
-  dateStyle: 'short'
-}).format(now); // Kết quả: "2026-03-16" (sv-SE cho định dạng YYYY-MM-DD)
+  // 1. Lấy ngày hiện tại dưới dạng chuỗi YYYY-MM-DD theo giờ VN
+  const now = new Date()
+  const vnDateStr = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    dateStyle: 'short',
+  }).format(now) // Kết quả: "2026-03-16" (sv-SE cho định dạng YYYY-MM-DD)
 
-// 2. Tạo mốc bắt đầu ngày (00:00:00 GMT+7)
-const todayStart = new Date(`${vnDateStr}T00:00:00+07:00`).toISOString();
+  // 2. Tạo mốc bắt đầu ngày (00:00:00 GMT+7)
+  const todayStart = new Date(`${vnDateStr}T00:00:00+07:00`).toISOString()
 
-// 3. Tạo mốc kết thúc ngày (23:59:59 GMT+7)
-const todayEnd = new Date(`${vnDateStr}T23:59:59+07:00`).toISOString();
+  // 3. Tạo mốc kết thúc ngày (23:59:59 GMT+7)
+  const todayEnd = new Date(`${vnDateStr}T23:59:59+07:00`).toISOString()
 
-// 4. Chuỗi ngày để hiển thị hoặc log
-const todayStr = vnDateStr;
+  // 4. Chuỗi ngày để hiển thị hoặc log
+  const todayStr = vnDateStr
 
-console.log('Bắt đầu:', todayStart); // Sẽ là 2026-03-15T17:00:00.000Z (Vì 17h hôm trước + 7h = 0h hôm nay)
-console.log('Kết thúc:', todayEnd);
+  console.log('Bắt đầu:', todayStart) // Sẽ là 2026-03-15T17:00:00.000Z (Vì 17h hôm trước + 7h = 0h hôm nay)
+  console.log('Kết thúc:', todayEnd)
   // 1. Số đơn hôm nay + doanh thu
   const { data: todayOrders } = await supabase
     .from('orders')
@@ -34,9 +35,9 @@ console.log('Kết thúc:', todayEnd);
     .lte('created_at', todayEnd)
     .neq('status', 'cancelled')
 
-  const totalOrders  = todayOrders?.length ?? 0
+  const totalOrders = todayOrders?.length ?? 0
   const totalRevenue = (todayOrders ?? [])
-    .filter(o => o.payment_status === 'paid')
+    .filter((o) => o.payment_status === 'paid')
     .reduce((s, o) => s + (o.total_price - (o.discount_amount ?? 0)), 0)
 
   // 2. Số món hủy hôm nay — từ print_queue loại cancel
@@ -55,11 +56,13 @@ console.log('Kết thúc:', todayEnd);
   // 3. Top 10 món bán chạy hôm nay
   const { data: topItems } = await supabase
     .from('order_items')
-    .select(`
+    .select(
+      `
       quantity,
       products ( id, name ),
       orders!inner ( created_at, status )
-    `)
+    `,
+    )
     .gte('orders.created_at', todayStart)
     .lte('orders.created_at', todayEnd)
     .neq('orders.status', 'cancelled')
@@ -86,17 +89,17 @@ console.log('Kết thúc:', todayEnd);
     .limit(50)
 
   // 5. Chi tiết món hủy hôm nay
-  const cancelledDetail = (cancelledItems ?? []).map(i => ({
-    id:          i.id,
-    orderId:     i.order_id,
+  const cancelledDetail = (cancelledItems ?? []).map((i) => ({
+    id: i.id,
+    orderId: i.order_id,
     productName: (i.content_json as any)?.productName ?? '?',
-    cancelQty:   (i.content_json as any)?.cancelQty ?? 1,
-    createdAt:   i.created_at,
+    cancelQty: (i.content_json as any)?.cancelQty ?? 1,
+    createdAt: i.created_at,
   }))
 
   return ApiResponse.success({
     today: {
-      date:          todayStr,
+      date: todayStr,
       totalOrders,
       totalRevenue,
       totalCancelled,
@@ -106,4 +109,3 @@ console.log('Kết thúc:', todayEnd);
     cancelledDetail,
   })
 }
-

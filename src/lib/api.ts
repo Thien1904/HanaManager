@@ -1,9 +1,9 @@
-// src/utils/api.ts
+// src/lib/api.ts
 // Helper functions dùng trong API routes
-// Cung cấp: getUserFromRequest, requireRole, requirePermission, assert, ApiResponse
 
 import { NextRequest, NextResponse } from 'next/server'
 import { UserRole } from '@/types/database'
+import { ApiResponse } from '@/utils/api-response'
 
 // Lỗi validation tự định nghĩa — phân biệt với lỗi hệ thống khi dùng trong handle()
 export class ValidationError extends Error {
@@ -49,25 +49,6 @@ export function requireRole(request: NextRequest, roles: UserRole[]) {
   if (!roles.includes(user.role)) return { user, error: ApiResponse.forbidden() }
   return { user, error: null }
 }
-
-/**
- * requirePermission — kiểm tra permission cụ thể
- * Admin luôn pass qua dù không có permission trong DB
- * Dùng: const { user, error } = requirePermission(request, 'orders.create')
- */
-export function requirePermission(request: NextRequest, permission: string) {
-  const user = getUserFromRequest(request)
-  if (!user) return { user: null, error: ApiResponse.unauthorized() }
-
-  // Admin bypass tất cả permission check
-  if (user.role === 'admin') return { user, error: null }
-
-  if (!user.permissions.includes(permission)) {
-    return { user, error: ApiResponse.forbidden() }
-  }
-  return { user, error: null }
-}
-
 /**
  * requireAnyPermission — pass nếu có ít nhất 1 trong các permission
  * Dùng: requireAnyPermission(request, ['orders.read', 'orders.create'])
@@ -78,54 +59,10 @@ export function requireAnyPermission(request: NextRequest, permissions: string[]
 
   if (user.role === 'admin') return { user, error: null }
 
-  const hasAny = permissions.some(p => user.permissions.includes(p))
+  const hasAny = permissions.some((p) => user.permissions.includes(p))
   if (!hasAny) return { user, error: ApiResponse.forbidden() }
   return { user, error: null }
 }
-
-export const ApiResponse = {
-  // Trả về response thành công với data
-  success: <T>(data: T, status = 200) => NextResponse.json({ success: true, data }, { status }),
-
-  // Trả về response lỗi với message
-  error: (message: string, status = 400) => NextResponse.json({ success: false, error: message }, { status }),
-
-  // 401 — chưa đăng nhập
-  unauthorized: () => NextResponse.json({ success: false, error: 'Không có quyền truy cập' }, { status: 401 }),
-
-  // 403 — không đủ quyền
-  forbidden: () => NextResponse.json({ success: false, error: 'Không đủ quyền thực hiện' }, { status: 403 }),
-
-  // 404 — không tìm thấy
-  notFound: (resource = 'Dữ liệu') =>
-    NextResponse.json({ success: false, error: `${resource} không tồn tại` }, { status: 404 }),
-
-  /**
-   * handle — xử lý lỗi trong catch block
-   * ValidationError  → 400 với message từ assert()
-   * Lỗi Supabase     → xử lý theo error code
-   * Lỗi khác         → 500
-   */
-  handle(err: unknown) {
-    if (err instanceof ValidationError)
-      return NextResponse.json({ success: false, error: err.message }, { status: err.status })
-
-    if (err && typeof err === 'object' && 'code' in err) {
-      const e = err as { code: string; message?: string }
-      switch (e.code) {
-        case '23505':
-          return ApiResponse.error('Dữ liệu đã tồn tại')
-        case 'PGRST116':
-          return ApiResponse.notFound()
-      }
-    }
-
-    console.error('🔥 API Error:', err)
-    const message = err instanceof Error ? err.message : 'Lỗi hệ thống không xác định'
-    return ApiResponse.error(message, 500)
-  },
-}
-// src/utils/api.ts
 
 const API_BASE = '/api/v1'
 

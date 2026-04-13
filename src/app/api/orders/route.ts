@@ -1,8 +1,9 @@
 // src/app/api/orders/route.ts
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { ApiResponse, requireRole, getUserFromRequest } from '@/utils/api'
-
+import { requireRole } from '@/utils/api'
+import { ApiResponse } from '@/utils/api-response' // Chuẩn hóa response API
+import { getUserFromRequest } from '@/utils/api-auth'
 // GET /api/orders — Lấy danh sách order
 export async function GET(request: NextRequest) {
   const { error } = requireRole(request, ['admin', 'waiter', 'chef'])
