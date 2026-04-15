@@ -1,7 +1,7 @@
 // src/hooks/useAdminProducts.ts
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { Product } from '@/hooks/useProducts'
+import type { Product } from '@/types/product'
 
 export interface Category {
   id: number

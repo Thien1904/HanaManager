@@ -75,6 +75,7 @@ export async function PUT(request: NextRequest) {
     const supabase = createAdminClient()
     const productService = new ProductService(supabase)
     const updatedProduct = await productService.updateProduct(Number(id), body)
+    console.log('RESULT BEFORE RETURN:', updatedProduct)
     return ApiResponse.success(updatedProduct)
   } catch (err) {
     return ApiResponse.handle(err)

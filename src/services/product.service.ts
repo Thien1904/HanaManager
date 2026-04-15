@@ -1,57 +1,86 @@
-// services/product.service.ts
-//import { Product } from '@/types/database'
+// src/services/product.service.ts
+
 import { Product } from '@/types/product'
-import { error } from 'console'
+
 const STORAGE_URL = 'https://[your-project-id].supabase.co/storage/v1/object/public/products/'
 
 export class ProductService {
   constructor(private supabase: any) {}
 
-  // Helper để xử lý link ảnh
+  private mapProduct(p: any): Product {
+    return {
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      price: Number(p.price),
+
+      imageUrl: p.image_url,
+      isavailable: p.is_available ?? true,
+
+      category: p.categories_id ?? null,
+
+      printKitchen: p.print_kitchen ?? true,
+      printBar: p.print_bar ?? false,
+      printLabel: p.print_label ?? false,
+
+      variants: (p.product_variants ?? [])
+        .filter((v: any) => v.is_active)
+        .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0)),
+    }
+  }
+
   private formatImageUrl(path: string | null) {
     if (!path) return null
-    if (path.startsWith('http')) return path // Nếu đã là link tuyệt đối thì giữ nguyên
+    if (path.startsWith('http')) return path
     return `${STORAGE_URL}${path}`
   }
 
-  async getProducts(options: {
-    categoryId?: number | string | null
-    includeUnavailable?: boolean
-  }) {
+  async getProducts({ categoryId, includeUnavailable }: any) {
     let query = this.supabase
       .from('products')
       .select(
         `
-      id, name, description, price, image_url, is_available,
-      category_id, print_kitchen, print_bar, print_label,
-      categories ( id, name ),
-      product_variants ( id, name, price, is_default, is_active, sort_order )
+      id,
+      name,
+      price,
+      description,
+      image_url,
+      is_available,
+      category_id,
+      category:categories(id, name)
     `,
       )
       .eq('is_deleted', false)
-      .order('name')
 
-    // Filter món
-    if (!options.includeUnavailable) {
-      query = query.eq('is_available', true)
+    if (categoryId) {
+      query = query.eq('category_id', Number(categoryId))
     }
 
-    // Ép kiểu number nếu categoryId tồn tại
-    if (options.categoryId) {
-      query = query.eq('category_id', Number(options.categoryId))
+    if (!includeUnavailable) {
+      query = query.eq('is_available', true)
     }
 
     const { data, error } = await query
     if (error) throw error
 
-    return (data ?? []).map((p: any) => ({
-      ...p,
-      // Xử lý link ảnh
-      image_url: this.formatImageUrl(p.image_url),
-      // Xử lý variants
-      variants: (p.product_variants ?? [])
-        .filter((v: any) => v.is_active)
-        .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0)),
+    // ✅ map lại cho frontend
+    return data.map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      description: p.description,
+
+      imageUrl: p.image_url, // 🔥 QUAN TRỌNG
+      isavailable: p.is_available,
+
+      category: p.category
+        ? {
+            id: p.category.id,
+            name: p.category.name,
+          }
+        : null,
+
+      category_id: p.category_id,
     }))
   }
 
@@ -62,43 +91,46 @@ export class ProductService {
         name: data.name,
         price: data.price,
         description: data.description,
-        category_id: data.category_id,
-        image_url: data.image_url, // Lưu path thô vào DB
-        is_available: data.is_available ?? true,
-        print_kitchen: data.print_kitchen ?? true,
-        print_bar: data.print_bar ?? false,
-        print_label: data.print_label ?? false,
+        category_id: data.categoryId,
+        image_url: data.imageUrl,
+        is_available: data.isavailable ?? true,
+        print_kitchen: data.printKitchen ?? true,
+        print_bar: data.printBar ?? false,
+        print_label: data.printLabel ?? false,
       })
       .select()
       .single()
 
     if (error) throw error
-    return result
+
+    return this.mapProduct(result)
   }
 
   async updateProduct(id: number, data: any) {
-    const { error, data: result } = await this.supabase
+    return this.supabase
       .from('products')
       .update({
         name: data.name,
         price: data.price,
         description: data.description,
-        category_id: data.category_id,
-        image_url: data.image_url,
-        is_available: data.is_available,
-        print_kitchen: data.print_kitchen,
-        print_bar: data.print_bar,
-        print_label: data.print_label,
+        category_id: data.categoryId,
+        image_url: data.imageUrl,
+        is_available: data.isavailable,
+        print_kitchen: data.printKitchen,
+        print_bar: data.printBar,
+        print_label: data.printLabel,
       })
       .eq('id', id)
-      .select()
-      .single()
-
-    if (error) throw error
-    return result
+      .select(
+        `
+      *,
+      categories (id, name),
+      product_variants (*)
+    `,
+      )
+      .maybeSingle()
   }
-
-  // CHỈ set is_deleted = true, KHÔNG xóa ảnh, KHÔNG set null image_url
+  // set is_Deleted=true, is_available =falses
   async deleteProduct(id: number) {
     const { error } = await this.supabase
       .from('products')
@@ -110,21 +142,21 @@ export class ProductService {
 
     if (error) throw error
   }
-  // Load các produc đã xóa để quản lý (nếu cần)
+
   async getDeletedProducts() {
     const { data, error } = await this.supabase
       .from('products')
       .select(
         `
-        id, name, price, description, category_id, image_url
+        id, name, price, description, image_url,
+        categories ( id, name )
       `,
       )
       .eq('is_deleted', true)
       .order('name')
+
     if (error) throw error
-    return (data ?? []).map((p: any) => ({
-      ...p,
-      image_url: this.formatImageUrl(p.image_url),
-    }))
+
+    return (data ?? []).map((p: any) => this.mapProduct(p))
   }
 }

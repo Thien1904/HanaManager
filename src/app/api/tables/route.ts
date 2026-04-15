@@ -142,7 +142,7 @@ export async function DELETE(request: NextRequest) {
       .from('orders')
       .select('*', { count: 'exact', head: true })
       .eq('table_id', Number(id))
-      // Sửa lỗi cú pháp: PostgREST không cần nháy kép bên trong ngoặc đơn
+
       .not('status', 'in', '(paid,cancelled)')
 
     assert(!count || count === 0, `Bàn còn ${count} order chưa xử lý, không thể xóa`)

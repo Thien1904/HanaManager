@@ -11,7 +11,7 @@
     "incremental": true,
     "module": "esnext",
     "esModuleInterop": true,
-    // --- SỬA CHỖ NÀY ĐỂ HẾT LỖI DEPRECATED ---
+
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     // ----------------------------------------
@@ -23,7 +23,7 @@
         "name": "next"
       }
     ],
-    "target": "ESNext" // Nâng cấp target lên ESNext cho đồng bộ với Module
+    "target": "ESNext"
   },
   "include": [
     "next-env.d.ts",

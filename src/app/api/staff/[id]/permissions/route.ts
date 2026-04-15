@@ -4,10 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 
 const supabase = createAdminClient()
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }, // 👈 sửa type
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
   const supabase = createAdminClient()

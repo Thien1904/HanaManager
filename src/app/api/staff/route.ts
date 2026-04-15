@@ -20,6 +20,9 @@ import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { requirePermission } from '@/utils/api-auth'
 import { ApiResponse } from '@/utils/api-response' // Chuẩn hóa response API
+// import requireRole
+import { requireRole } from '@/utils/api'
+
 // createAdminClient: tạo Supabase client dùng SERVICE_ROLE_KEY
 // → bypass RLS, dùng trong API routes server-side để có toàn quyền đọc/ghi
 // requireRole: đọc header x-user-role từ middleware.ts → kiểm tra quyền truy cập

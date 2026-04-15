@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
 
 /**
  * PUT /api/ingredient-packages
- * Sửa tên quy cách hoặc tỷ lệ quy đổi
+
  */
 export async function PUT(request: NextRequest) {
   const { error } = requireRole(request, ['admin'])

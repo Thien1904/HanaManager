@@ -2,33 +2,38 @@
 'use client'
 import { useState } from 'react'
 import { useAdminProducts } from '@/hooks/useAdminProducts'
-import { Product } from '@/hooks/useProducts'
+import type { Product } from '@/types/product'
 import ProductFormModal from '@/components/admin/ProductFormModal'
 import CategoryManager from '@/components/admin/CategoryManager'
-
-// Extend Product với category_id để filter
-type AdminProduct = Product & { category_id: number }
 
 export default function MenuManager() {
   const { products, categories, loading, error, refresh } = useAdminProducts()
   const [selectedCategory, setSelectedCategory] = useState<number | 'all'>('all')
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
-  const [editProduct, setEditProduct] = useState<AdminProduct | null>(null)
+  const [editProduct, setEditProduct] = useState<Product | null>(null)
   const [showCatManager, setShowCatManager] = useState(false)
 
-  const filtered = (products as AdminProduct[]).filter((p) => {
-    const matchCat = selectedCategory === 'all' || p.category_id === selectedCategory
-    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase())
-    return matchCat && matchSearch
+  const filtered = products.filter((p) => {
+    const pCatId = p.category?.id ?? (p as any).category_id ?? (p as any).categoryId
+
+    const matchCategory =
+      selectedCategory === 'all' || (pCatId && Number(pCatId) === Number(selectedCategory))
+
+    const matchSearch = p.name?.toLowerCase().includes(search.toLowerCase())
+
+    return matchCategory && matchSearch
   })
 
-  async function toggleAvailable(product: AdminProduct) {
+  async function toggleAvailable(product: Product) {
+    const currentStatus = product.isavailable
+
     await window.fetch('/api/products', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: product.id, is_available: !product.is_available }),
+      body: JSON.stringify({ id: product.id, isavailable: !currentStatus }),
     })
+
     refresh()
   }
 
@@ -120,14 +125,14 @@ export default function MenuManager() {
             <div
               key={product.id}
               className={`bg-white rounded-xl border overflow-hidden transition ${
-                product.is_available ? 'border-gray-200' : 'border-gray-200 opacity-50'
+                product.isavailable ? 'border-gray-200' : 'border-gray-200 opacity-50'
               }`}
             >
               {/* Ảnh */}
               <div className="relative aspect-square bg-gray-100">
-                {product.image_url ? (
+                {product.imageUrl ? (
                   <img
-                    src={product.image_url}
+                    src={product.imageUrl}
                     alt={product.name}
                     className="w-full h-full object-cover"
                   />
@@ -143,7 +148,7 @@ export default function MenuManager() {
                   {product.price.toLocaleString('vi-VN')}đ
                 </p>
                 <p className="text-xs text-gray-400 truncate mt-0.5">
-                  {product.categories?.name ?? '—'}
+                  {product.category?.name ?? '—'}
                 </p>
                 <p
                   className="text-xs text-gray-400  mt-0.5"
@@ -167,12 +172,12 @@ export default function MenuManager() {
                   <button
                     onClick={() => toggleAvailable(product)}
                     className={`flex-1 py-1 text-xs rounded-lg transition ${
-                      product.is_available
+                      product.isavailable
                         ? 'bg-green-100 text-green-700 hover:bg-green-200'
                         : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                     }`}
                   >
-                    {product.is_available ? 'Có bán' : 'Hết'}
+                    {product.isavailable ? 'Có bán' : 'Hết'}
                   </button>
                   <button
                     onClick={() => {

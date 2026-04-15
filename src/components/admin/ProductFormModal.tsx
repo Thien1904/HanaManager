@@ -1,22 +1,10 @@
 // src/components/admin/ProductFormModal.tsx
 // Modal thêm / sửa món ăn
-// Bao gồm cấu hình in: print_kitchen, print_bar, print_label
+// Bao gồm cấu hình in: printKitchen, print_bar, print_label
 
 'use client'
+import { Product } from '@/types/product'
 import { useEffect, useRef, useState } from 'react'
-
-type Product = {
-  id: number
-  name: string
-  price: number
-  description: string | null
-  image_url: string | null
-  is_available: boolean
-  category_id: number
-  print_kitchen: boolean
-  print_bar: boolean
-  print_label: boolean
-}
 
 type Category = { id: number; name: string }
 
@@ -61,24 +49,27 @@ function Toggle({
     </div>
   )
 }
-
 export default function ProductFormModal({ product, categories, onClose, onSaved }: Props) {
   const isEdit = !!product
   const fileRef = useRef<HTMLInputElement>(null)
 
   const [form, setForm] = useState({
     name: product?.name ?? '',
-    category_id: product?.category_id ?? categories[0]?.id ?? 0,
+
+    categoryId: product?.category?.id ?? categories[0]?.id ?? 0,
+
     price: product?.price ?? 0,
     description: product?.description ?? '',
-    image_url: product?.image_url ?? '',
-    is_available: product?.is_available ?? true,
-    // Cấu hình in — mặc định chỉ bật kitchen
-    print_kitchen: product?.print_kitchen ?? true,
-    print_bar: product?.print_bar ?? false,
-    print_label: product?.print_label ?? false,
-  })
 
+    imageUrl: product?.imageUrl ?? '',
+
+    isavailable: product?.isavailable ?? true,
+
+    // cấu hình in
+    printKitchen: product?.printKitchen ?? true,
+    printBar: product?.printBar ?? false,
+    printLabel: product?.printLabel ?? false,
+  })
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -102,11 +93,11 @@ export default function ProductFormModal({ product, categories, onClose, onSaved
     fd.append('file', file)
 
     // Xóa ảnh cũ nếu có
-    if (form.image_url) {
+    if (form.imageUrl) {
       await window.fetch('/api/upload', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: form.image_url }),
+        body: JSON.stringify({ url: form.imageUrl }),
       })
     }
 
@@ -114,7 +105,7 @@ export default function ProductFormModal({ product, categories, onClose, onSaved
     const data = await res.json()
     setUploading(false)
 
-    if (data.data?.url) setForm((f) => ({ ...f, image_url: data.data.url }))
+    if (data.data?.url) setForm((f) => ({ ...f, imageUrl: data.data.url }))
     else setError('Upload ảnh thất bại')
   }
 
@@ -125,7 +116,7 @@ export default function ProductFormModal({ product, categories, onClose, onSaved
       setError('Tên món không được trống')
       return
     }
-    if (!form.category_id) {
+    if (!form.categoryId) {
       setError('Chọn danh mục')
       return
     }
@@ -174,8 +165,8 @@ export default function ProductFormModal({ product, categories, onClose, onSaved
               className="relative border-2 border-dashed border-gray-300 rounded-xl h-40 flex items-center justify-center cursor-pointer hover:border-orange-400 transition overflow-hidden"
               onClick={() => fileRef.current?.click()}
             >
-              {form.image_url ? (
-                <img src={form.image_url} alt="preview" className="w-full h-full object-cover" />
+              {form.imageUrl ? (
+                <img src={form.imageUrl} alt="preview" className="w-full h-full object-cover" />
               ) : (
                 <div className="text-center text-gray-400 text-sm">
                   <div className="text-3xl mb-1">📷</div>
@@ -196,18 +187,18 @@ export default function ProductFormModal({ product, categories, onClose, onSaved
               className="hidden"
               onChange={handleImageChange}
             />
-            {form.image_url && (
+            {form.imageUrl && (
               <button
                 type="button"
                 onClick={async () => {
-                  if (form.image_url) {
+                  if (form.imageUrl) {
                     await window.fetch('/api/upload', {
                       method: 'DELETE',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ url: form.image_url }),
+                      body: JSON.stringify({ url: form.imageUrl }),
                     })
                   }
-                  setForm((f) => ({ ...f, image_url: '' }))
+                  setForm((f) => ({ ...f, imageUrl: '' }))
                 }}
                 className="mt-1 text-xs text-red-500 hover:underline"
               >
@@ -233,8 +224,8 @@ export default function ProductFormModal({ product, categories, onClose, onSaved
               <label className="block text-sm font-medium text-gray-700 mb-1">Danh mục *</label>
               <select
                 className={inputCls}
-                value={form.category_id}
-                onChange={(e) => setForm((f) => ({ ...f, category_id: Number(e.target.value) }))}
+                value={form.categoryId}
+                onChange={(e) => setForm((f) => ({ ...f, categoryId: Number(e.target.value) }))}
               >
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -272,8 +263,8 @@ export default function ProductFormModal({ product, categories, onClose, onSaved
           <Toggle
             label="Đang bán"
             sub="Bật = hiện trên menu, tắt = ẩn khỏi POS"
-            checked={form.is_available}
-            onChange={(v) => setForm((f) => ({ ...f, is_available: v }))}
+            checked={!!form.isavailable}
+            onChange={(v) => setForm((f) => ({ ...f, isavailable: v }))}
             color="bg-green-500"
           />
 
@@ -284,22 +275,22 @@ export default function ProductFormModal({ product, categories, onClose, onSaved
               <Toggle
                 label="Báo bếp (Kitchen)"
                 sub="In phiếu chế biến gửi bếp khi order"
-                checked={form.print_kitchen}
-                onChange={(v) => setForm((f) => ({ ...f, print_kitchen: v }))}
+                checked={form.printKitchen}
+                onChange={(v) => setForm((f) => ({ ...f, printKitchen: v }))}
                 color="bg-orange-500"
               />
               <Toggle
                 label="Báo bar"
                 sub="In phiếu gửi bar khi order"
-                checked={form.print_bar}
-                onChange={(v) => setForm((f) => ({ ...f, print_bar: v }))}
+                checked={form.printBar}
+                onChange={(v) => setForm((f) => ({ ...f, printBar: v }))}
                 color="bg-blue-500"
               />
               <Toggle
                 label="In tem dán ly"
                 sub="In tem label dán lên ly/hộp"
-                checked={form.print_label}
-                onChange={(v) => setForm((f) => ({ ...f, print_label: v }))}
+                checked={form.printLabel}
+                onChange={(v) => setForm((f) => ({ ...f, printLabel: v }))}
                 color="bg-purple-500"
               />
             </div>

@@ -8,17 +8,20 @@ export interface ProductVariant {
   sortOrder: number
 }
 
+// camelCase
 export interface Product {
   id: number
   name: string
   description: string | null
   price: number
+
   imageUrl: string | null
-  isAvailable: boolean
-  categoryId: number | null
+  isavailable: boolean
+  category: { id: number; name: string } | null
+
   printKitchen: boolean
   printBar: boolean
   printLabel: boolean
-  category?: { id: number; name: string }
+
   variants: ProductVariant[]
 }

@@ -3,12 +3,18 @@
 // Type definitions khớp với schema PostgreSQL
 // ================================================
 
-import { Timestamp } from "next/dist/server/lib/cache-handlers/types"
+import { Timestamp } from 'next/dist/server/lib/cache-handlers/types'
 
 // --- ENUMS ---
 export type UserRole = 'admin' | 'waiter' | 'chef'
 export type TableStatus = 'available' | 'occupied' | 'reserved'
-export type OrderStatus = 'pending' | 'sent_to_kitchen' | 'preparing' | 'served' | 'paid' | 'cancelled'
+export type OrderStatus =
+  | 'pending'
+  | 'sent_to_kitchen'
+  | 'preparing'
+  | 'served'
+  | 'paid'
+  | 'cancelled'
 export type PurchaseStatus = 'pending' | 'completed' | 'cancelled'
 export type KitchenTicketStatus = 'sent' | 'acknowledged' | 'completed' | 'cancelled'
 export type PrintStatus = 'pending' | 'printing' | 'printed' | 'failed' | 'cancelled'
@@ -62,8 +68,8 @@ export interface EmployeeProfile {
 export interface ShiftTemplate {
   id: number
   name: string
-  start_time: string   // "07:00:00"
-  end_time: string     // "12:00:00"
+  start_time: string // "07:00:00"
+  end_time: string // "12:00:00"
   duration_hours: number | null
   is_active: boolean
 }
@@ -72,7 +78,7 @@ export interface WorkSchedule {
   id: number
   user_id: number
   shift_template_id: number
-  scheduled_date: string   // "2025-03-15"
+  scheduled_date: string // "2025-03-15"
   week_number: number | null
   month: number | null
   year: number | null
@@ -123,7 +129,8 @@ export interface Category {
   name: string
 }
 
-export interface Product {
+// snake_case
+export interface ProductRow {
   id: number
   category_id: number | null
   name: string
@@ -131,7 +138,9 @@ export interface Product {
   price: number
   image_url: string | null
   is_available: boolean
-  is_deleted: boolean
+  print_kitchen: boolean
+  print_bar: boolean
+  print_label: boolean
 }
 
 export interface Table {
@@ -195,7 +204,7 @@ export interface KitchenTicket {
   order_id: number
   table_id: number | null
   sent_by: number | null
-  items_snapshot: KitchenItem[]  // JSONB parsed
+  items_snapshot: KitchenItem[] // JSONB parsed
   note: string | null
   acknowledged_by: number | null
   acknowledged_at: string | null
@@ -238,7 +247,6 @@ export interface Ingredient {
   updated_at: string
 }
 
-
 export interface AiConversation {
   id: number
   user_id: number
@@ -263,7 +271,7 @@ export interface OrderWithDetails extends Order {
   table: Table | null
   user: Pick<User, 'id' | 'full_name'> | null
   customer: Pick<Customer, 'id' | 'name' | 'phone'> | null
-  order_items: (OrderItem & { product: Product })[]
+  order_items: (OrderItem & { product: ProductRow })[]
 }
 
 export interface UserWithProfile extends User {
@@ -280,9 +288,9 @@ export interface Ingredient_Package {
   package_name: string
   conversion_factor: number
   created_at: string
- }
+}
 export interface Ingredient_Import {
-  id: number  
+  id: number
   package_id: number
   quantity_imported: number
   unit_price: number
@@ -290,8 +298,8 @@ export interface Ingredient_Import {
 }
 // join tables để hiển thị lên màn hình nhập hàng
 export interface Ingredient_Import_With_Details extends Ingredient_Import {
-  ingredient_name?: string; 
-  package_display_name?: string;
+  ingredient_name?: string
+  package_display_name?: string
 }
 // 1. Định nghĩa riêng cho quy cách đóng gói của nguyên liệu (ingredient_packages)
 export interface IngredientPackage {
@@ -299,11 +307,9 @@ export interface IngredientPackage {
   ingredient_id: number
   package_name: string
   conversion_factor: number
-  is_active: boolean;
+  is_active: boolean
 }
-// 2. Định nghĩa Nguyên liệu có kèm danh sách Quy cách 
+// 2. Định nghĩa Nguyên liệu có kèm danh sách Quy cách
 export interface IngredientWithPackages extends Ingredient {
-  packages: IngredientPackage[]; 
+  packages: IngredientPackage[]
 }
-
-
