@@ -5,6 +5,7 @@ import { useAdminProducts } from '@/hooks/useAdminProducts'
 import type { Product } from '@/types/product'
 import ProductFormModal from '@/components/admin/ProductFormModal'
 import CategoryManager from '@/components/admin/CategoryManager'
+import { Trash } from 'lucide-react'
 
 export default function MenuManager() {
   const { products, categories, loading, error, refresh } = useAdminProducts()
@@ -13,6 +14,8 @@ export default function MenuManager() {
   const [showModal, setShowModal] = useState(false)
   const [editProduct, setEditProduct] = useState<Product | null>(null)
   const [showCatManager, setShowCatManager] = useState(false)
+  // load các món đã xóa
+  const [deletedProducts, setDeletedProducts] = useState<Product[]>([])
 
   const filtered = products.filter((p) => {
     const pCatId = p.category?.id ?? (p as any).category_id ?? (p as any).categoryId
@@ -26,12 +29,12 @@ export default function MenuManager() {
   })
 
   async function toggleAvailable(product: Product) {
-    const currentStatus = product.isavailable
+    const currentStatus = product.isAvailable
 
     await window.fetch('/api/products', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: product.id, isavailable: !currentStatus }),
+      body: JSON.stringify({ id: product.id, isAvailable: !currentStatus }),
     })
 
     refresh()
@@ -59,7 +62,12 @@ export default function MenuManager() {
             {products.length} món · {categories.length} danh mục
           </p>
         </div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-gray-800">Danh mục</h2>
+        </div>
         <div className="flex gap-2">
+          {/*// button load các product đã Xóa*/}
+
           <button
             onClick={() => setShowCatManager(true)}
             className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition"
@@ -125,7 +133,7 @@ export default function MenuManager() {
             <div
               key={product.id}
               className={`bg-white rounded-xl border overflow-hidden transition ${
-                product.isavailable ? 'border-gray-200' : 'border-gray-200 opacity-50'
+                product.isAvailable ? 'border-gray-200' : 'border-gray-200 opacity-50'
               }`}
             >
               {/* Ảnh */}
@@ -172,12 +180,12 @@ export default function MenuManager() {
                   <button
                     onClick={() => toggleAvailable(product)}
                     className={`flex-1 py-1 text-xs rounded-lg transition ${
-                      product.isavailable
+                      product.isAvailable
                         ? 'bg-green-100 text-green-700 hover:bg-green-200'
                         : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                     }`}
                   >
-                    {product.isavailable ? 'Có bán' : 'Hết'}
+                    {product.isAvailable ? 'Có bán' : 'Hết'}
                   </button>
                   <button
                     onClick={() => {

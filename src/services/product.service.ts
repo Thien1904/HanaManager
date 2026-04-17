@@ -1,6 +1,7 @@
 // src/services/product.service.ts
 
 import { Product } from '@/types/product'
+import { PrinterCheck } from 'lucide-react'
 
 const STORAGE_URL = 'https://[your-project-id].supabase.co/storage/v1/object/public/products/'
 
@@ -15,8 +16,8 @@ export class ProductService {
       price: Number(p.price),
 
       imageUrl: p.image_url,
-      isavailable: p.is_available ?? true,
-
+      isAvailable: p.is_available ?? true,
+      isDeleted: p.is_deleted ?? false,
       category: p.categories_id ?? null,
 
       printKitchen: p.print_kitchen ?? true,
@@ -40,13 +41,7 @@ export class ProductService {
       .from('products')
       .select(
         `
-      id,
-      name,
-      price,
-      description,
-      image_url,
-      is_available,
-      category_id,
+      *,
       category:categories(id, name)
     `,
       )
@@ -63,15 +58,18 @@ export class ProductService {
     const { data, error } = await query
     if (error) throw error
 
-    // ✅ map lại cho frontend
+    //map
     return data.map((p: any) => ({
       id: p.id,
       name: p.name,
       price: p.price,
       description: p.description,
 
-      imageUrl: p.image_url, // 🔥 QUAN TRỌNG
-      isavailable: p.is_available,
+      imageUrl: p.image_url,
+      isAvailable: p.is_available,
+      printKitchen: p.print_kitchen,
+      printBar: p.print_bar,
+      printLabel: p.print_label,
 
       category: p.category
         ? {
@@ -93,7 +91,7 @@ export class ProductService {
         description: data.description,
         category_id: data.categoryId,
         image_url: data.imageUrl,
-        is_available: data.isavailable ?? true,
+        is_available: data.isAvailable ?? true,
         print_kitchen: data.printKitchen ?? true,
         print_bar: data.printBar ?? false,
         print_label: data.printLabel ?? false,
@@ -115,7 +113,7 @@ export class ProductService {
         description: data.description,
         category_id: data.categoryId,
         image_url: data.imageUrl,
-        is_available: data.isavailable,
+        is_available: data.isAvailable,
         print_kitchen: data.printKitchen,
         print_bar: data.printBar,
         print_label: data.printLabel,
@@ -142,21 +140,41 @@ export class ProductService {
 
     if (error) throw error
   }
+  async getDeletedProducts(): Promise<Product[]> {
+    try {
+      const { data, error } = await this.supabase
+        .from('products')
+        .select('*, categories(id, name)')
+        .eq('is_deleted', true)
+        .order('id', { ascending: false })
 
-  async getDeletedProducts() {
-    const { data, error } = await this.supabase
+      if (error) {
+        // In thẳng lỗi từ Supabase ra console
+        console.error('Lỗi Query Supabase:', error.message, error.details, error.hint)
+        throw error
+      }
+
+      if (!data) return []
+
+      return data.map((p: any) => {
+        try {
+          return this.mapProduct(p)
+        } catch (mapError) {
+          console.error('Lỗi mapping tại item:', p, mapError)
+          throw mapError
+        }
+      })
+    } catch (err) {
+      console.error('Lỗi tổng quát trong Service:', err)
+      throw err
+    }
+  }
+  async restoreProduct(id: number) {
+    const { error } = await this.supabase
       .from('products')
-      .select(
-        `
-        id, name, price, description, image_url,
-        categories ( id, name )
-      `,
-      )
-      .eq('is_deleted', true)
-      .order('name')
+      .update({ is_deleted: false, is_available: true }) // Khôi phục và cho phép bán
+      .eq('id', id)
 
     if (error) throw error
-
-    return (data ?? []).map((p: any) => this.mapProduct(p))
   }
 }

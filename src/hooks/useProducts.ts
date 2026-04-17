@@ -21,7 +21,7 @@ export interface Product {
   price: number
 
   imageUrl: string | null
-  isavailable: boolean
+  isAvailable: boolean
 
   category: { id: number; name: string } | null
 

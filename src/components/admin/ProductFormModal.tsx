@@ -63,7 +63,7 @@ export default function ProductFormModal({ product, categories, onClose, onSaved
 
     imageUrl: product?.imageUrl ?? '',
 
-    isavailable: product?.isavailable ?? true,
+    isAvailable: product?.isAvailable ?? true,
 
     // cấu hình in
     printKitchen: product?.printKitchen ?? true,
@@ -263,8 +263,8 @@ export default function ProductFormModal({ product, categories, onClose, onSaved
           <Toggle
             label="Đang bán"
             sub="Bật = hiện trên menu, tắt = ẩn khỏi POS"
-            checked={!!form.isavailable}
-            onChange={(v) => setForm((f) => ({ ...f, isavailable: v }))}
+            checked={!!form.isAvailable}
+            onChange={(v) => setForm((f) => ({ ...f, isAvailable: v }))}
             color="bg-green-500"
           />
 
@@ -274,7 +274,7 @@ export default function ProductFormModal({ product, categories, onClose, onSaved
             <div className="space-y-2">
               <Toggle
                 label="Báo bếp (Kitchen)"
-                sub="In phiếu chế biến gửi bếp khi order"
+                sub="In phiếu chế biến gửi bếp khi order1111"
                 checked={form.printKitchen}
                 onChange={(v) => setForm((f) => ({ ...f, printKitchen: v }))}
                 color="bg-orange-500"

@@ -1,4 +1,4 @@
-// src/components/admin/PermissionManager.tsx
+// src/components/admin/permission/PermissionManager.tsx
 // Trang phân quyền user — chọn user → tick/bỏ tick từng quyền
 // Admin luôn có full quyền, không hiện trong danh sách
 

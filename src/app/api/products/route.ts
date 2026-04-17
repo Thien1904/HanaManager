@@ -82,6 +82,60 @@ export async function PUT(request: NextRequest) {
   }
 }
 
+export async function PATCH(req: Request) {
+  try {
+    const body = await req.json()
+    const supabase = createAdminClient()
+    const { id, action } = body
+
+    const productService = new ProductService(supabase)
+
+    // 1. Xử lý khôi phục từ thùng rác
+    if (action === 'restore') {
+      await productService.restoreProduct(id)
+      return Response.json({
+        success: true,
+        message: 'Món ăn đã được khôi phục thành công',
+      })
+    }
+
+    // 2. Xử lý toggle trạng thái isAvailable (Nếu không phải action restore)
+    // Lấy trạng thái hiện tại để toggle hoặc dùng value truyền lên
+    const { isAvailable } = body
+
+    const { data, error } = await supabase
+      .from('products')
+      .update({ is_available: isAvailable })
+      .eq('id', id)
+      .select()
+
+    if (error) throw error
+
+    return Response.json({
+      success: true,
+      message: 'Cập nhật trạng thái thành công',
+      data,
+    })
+  } catch (error: any) {
+    console.error('Lỗi PATCH Product:', error)
+    return Response.json(
+      { success: false, message: error.message || 'Lỗi hệ thống' },
+      { status: 500 },
+    )
+  }
+}
+export async function getDeleted(request: NextRequest) {
+  const { error } = requirePermission(request, 'menu.read')
+  if (error) return error
+
+  try {
+    const supabase = createAdminClient()
+    const productService = new ProductService(supabase)
+  } catch (err) {
+    return ApiResponse.handle(err)
+  }
+}
+
 /**
  * DELETE /api/products — Soft delete món
  */

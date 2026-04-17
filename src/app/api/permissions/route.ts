@@ -26,8 +26,8 @@ export async function GET(request: NextRequest) {
     // Lấy tất cả permissions nhóm theo grp
     const { data: allPerms, error: permsError } = await supabase
       .from('permissions')
-      .select('id, code, name, grp')
-      .order('grp')
+      .select('id, code, name, group_name, created_at')
+      .order('group_name')
       .order('name')
 
     if (permsError) throw permsError
